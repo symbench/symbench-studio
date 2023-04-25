@@ -1,15 +1,10 @@
-[submodule "submodules/symbench-dataset"]
-	path = submodules/symbench-dataset
-	url = git@github.com:symbench/symbench-dataset.git
-[submodule "submodules/cp-problems-generator"]
-	path = submodules/cp-problems-generator
-	url = git@github.com:symbench/cp-problems-generator.git
 [submodule "constraint-prog"]
 	path = constraint-prog
 	url = git@github.com:symbench/constraint-prog.git
 [submodule "symbench-dataset"]
 	path = symbench-dataset
 	url = git@github.com:symbench/symbench-dataset.git
+	branch = symb_studio_st_hacking
 [submodule "cp-problems-generator"]
 	path = cp-problems-generator
 	url = git@github.com:symbench/cp-problems-generator.git
