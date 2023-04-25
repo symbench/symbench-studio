@@ -1,18 +1,12 @@
 import plotly.graph_objects as go
+import numpy as np
 
-def plot_pareto_front(x, y, title='Pareto Front'):
-    """
-    Creates a plotly chart of the Pareto front for an optimization problem
-    given the results of the optimization.
 
-    Parameters:
-        x (list): A list of x-axis values for the Pareto front.
-        y (list): A list of y-axis values for the Pareto front.
-        title (str): Optional title for the chart.
-
-    Returns:
-        A plotly figure object.
-    """
+def plot_pareto_front(title='Pareto Front'):
+    
+    np.random.seed(42)
+    x = np.random.rand(30)
+    y = np.random.rand(30)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=x, y=y, mode='markers', marker=dict(size=10)))
     fig.update_layout(

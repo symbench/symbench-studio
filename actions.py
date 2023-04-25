@@ -6,7 +6,7 @@ import subprocess
 def problem_selection():
     available_problems = os.listdir(PROBLEMS_ABSPATH)
     selected_problem = st.selectbox("Select an optimization problem", available_problems, index=0)
-    st.write(f"Input summary for {selected_problem}:")
+    st.write(f"Summary of input.txt for {selected_problem}:")
     selected_problem_path = os.path.join(PROBLEMS_ABSPATH, selected_problem)
     
     import re
@@ -23,13 +23,13 @@ def problem_selection():
     if objective:
         objective = objective.group(1)
 
-        st.write("Number of variables: ", num_variables)
-        st.write("Number of constraints: ", num_constraints)
-        st.write("Number of projections: ", num_projections)
+        st.write("- Number of variables: ", num_variables)
+        st.write("- Number of constraints: ", num_constraints)
+        st.write("- Number of projections: ", num_projections)
         if objective:
-            st.write(f'Optimization objective: {objective}')
+            st.write(f'- Optimization objective: {objective}')
         else:
-            st.write('Optimization objective not found')
+            st.write('- Optimization objective not found')
 
     problem_info = subprocess.run(["symbench-dataset", "info", "--print_problem", selected_problem], capture_output=True, text=True)
     print(f" problem_info: {problem_info.stdout}")

@@ -1,16 +1,19 @@
 import streamlit as st
-from descriptions import PROBLEM_DESCRIPTIONS
-import pages
+from pages.welcome import create_welcome
+from pages.problem_overview import create_problem_overview
+from pages.problem_solve import create_problem_solve
+from pages.problem_generate import create_problem_generate
+from pages.data_view import create_data_view
 from constants import PAGES
 
 
 
 app_functions = {
-    'Welcome': pages.welcome_page,
-    'Problem Overview': pages.probdef_page,
-    'Solve Problems': pages.symdata_page,
-    'Generate Problems': pages.probgen_page,
-    'View Results': pages.data_view_page
+    'Welcome': create_welcome,
+    'Problem Overview': create_problem_overview,
+    'Generate Problems': create_problem_generate,
+    'Solve Problems': create_problem_solve,
+    'View Results': create_data_view
 }
 
 def create_sidebar():
