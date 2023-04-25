@@ -1,4 +1,5 @@
 import streamlit as st
+#import actions 
 import os 
 from constants import PROBLEMS_ABSPATH, RESULTS_ABSPATH, PROBLEM_SPECS_ABSPATH
 import subprocess
@@ -47,13 +48,15 @@ def problem_selection():
             with st.spinner("Solving..."):
                 solve_process = subprocess.run(["symbench-dataset", "solve", "--problem", selected_problem, "--solver", selected_solver])
             #st.write("Results saved to ")
+            
+            
+#def create_problem_solve():
+st.title("Problem Solver Selection")
+st.sidebar.title("Reference Info:")
+st.sidebar.write("symbench-dataset submodule used:")
+symbench_dataset_link = "[symbench-dataset](https://github.com/symbench/symbench-dataset)"
+st.sidebar.markdown(symbench_dataset_link, unsafe_allow_html=True)
+#st.write("Here are the existing Symbench problems:")
+#actions.problem_selection()
+problem_selection()
 
-def problem_generation(selected_problems):
-
-    for problem in selected_problems:
-        dirpath = os.path.join(PROBLEM_SPECS_ABSPATH, problem)
-        if not os.path.exists(dirpath):
-            os.makedirs(dirpath)
-        filepath = os.path.join(dirpath, 'input.txt')
-        subprocess.run(["cp-problems-generator", "dump", "--output-file", filepath, problem])
-    
