@@ -8,10 +8,11 @@ Initial setup of symbench studio for interactive exploration of relevant optimiz
 2. `streamlit run app.py`
 
 # TODO 
-- [ ] Constraint_prog solver connection to frontend
+- [ ] modify solve parameters (e.g. population size, number of generations, etc. from user interface)
+- [ ] write result to `symbench-studio-data`
 - [ ] Select by specific problem (e.g. circle packing) instead of optimization problem type
-- [ ] show visualization after solve or view Pareto fronts of previous solves
-- [ ] comparison of solve speeds
-- [ ] Add sidebar Nav for selecting and solving problems vs viewing results from previous solutions 
+- [ ] visualization after solve or view Pareto fronts of previous solves
+- [ ] comparison of solver performance
+
 
 ![example](example.png)

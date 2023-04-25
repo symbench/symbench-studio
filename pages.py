@@ -4,7 +4,7 @@ from descriptions import PROBLEM_DESCRIPTIONS
 #from driver import call_solver
 import actions
 
-def probdef_screen():
+def probdef_page():
     problem_selection = st.selectbox("Select a problem:", PROBLEMS, index=0)
     problem_selection = problem_selection.lower()
     # solver_selection = st.selectbox("Select a solver:", SOLVERS, index=0)
@@ -24,15 +24,11 @@ def probdef_screen():
     for c in constraints:
         st.latex(c)
 
-def probgen_screen():
+def probgen_page():
     st.write("cp-problems-generator screen")
     st.write("Here are the existing problems:")
-    
-    problems_to_generate = []
-    for p in PROBLEMS:
-        select_val = st.checkbox(p, value=False)
-        if select_val:
-            problems_to_generate.append(p)
+
+    problems_to_generate = st.multiselect("Select problems to generate", PROBLEMS)
     st.write(f"problems_to_generate: {problems_to_generate}")
     generate_button_press = st.button("Generate")
     if generate_button_press:
@@ -51,32 +47,38 @@ def probgen_screen():
         #     actions.generate_selected_problems(problems_to_generate, True)
     actions.problem_generation(problems_to_generate)
 
-def symdata_screen():
+def symdata_page():
     st.write("symbench-dataset screen")
     st.write("Here are the existing Symbench problems:")
     actions.problem_selection()
 
 
-def welcome_screen():
-    st.write("Welcome to Symbench Studio")
-    st.write("The following screens are available")
-    st.write("- problem-definitions: view optimization problem objectives and constraints")
-    st.write("- cp-problems-generator: generate new optimization problems")
-    st.write("- symbench-dataset: solve and view results to defined problems")
+def welcome_page():
+    st.write("The following pages are available")
+    st.write("- Problem Overview: view optimization problem objectives and constraints for BNH, OSY, TNK")
+    st.write("- Generate Problems: create input.txt files which are consumed in the symbench-dataset screen to solve a selected optimization problem")
+    st.write("- Solve Problems: solve a pre-defined problems with a selected solver using the input.txt file generated in the cp-problems-generator screen. Write results will be written to symbench-studio-data/results/ (need to modify write locations)")
+    st.write("- View Results: view results from the symbench-studio-data/results/ folder")
     
+    st.write("submodules used in this project:")
+    symbench_dataset_link = "[symbench-dataset](git@github.com:symbench/symbench-dataset.git)"
+    st.markdown(symbench_dataset_link, unsafe_allow_html=True)
 
-def data_view_screen():
-    st.write("data view screen")
+    cp_problems_generator_link = "[cp-problems-generator](git@github.com:symbench/cp-problems-generator.git)"
+    st.markdown(cp_problems_generator_link, unsafe_allow_html=True)
+
+def data_view_page():
+    st.write("data view page")
 
 
-def display_screen(screen):
-    if screen == "welcome":
-        welcome_screen()
-    elif screen == "cp-problems-generator":
-        probgen_screen()
-    elif screen == "symbench-dataset":
-        symdata_screen()
-    elif screen == "problem-definitions":
-        probdef_screen()
-    elif screen == "data view":
-        data_view_screen()
+# def display_screen(screen):
+#     if screen == "welcome":
+#         welcome_screen()
+#     elif screen == "cp-problems-generator":
+#         probgen_screen()
+#     elif screen == "symbench-dataset":
+#         symdata_screen()
+#     elif screen == "problem-definitions":
+#         probdef_screen()
+#     elif screen == "data view":
+#         data_view_screen()
