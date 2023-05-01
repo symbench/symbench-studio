@@ -1,0 +1,22 @@
+variable x0 -5.12 5.12
+variable x1 -5.12 5.12
+variable x2 -5.12 5.12
+variable x3 -5.12 5.12
+variable x4 -5.12 5.12
+variable x5 -5.12 5.12
+variable x6 -5.12 5.12
+variable x7 -5.12 5.12
+variable x8 -5.12 5.12
+variable x9 -5.12 5.12
+#constraint c1 leq(x0, 6)
+#constraint c2 leq(x1, 6)
+#constraint c3 leq(x2, 6)
+#constraint c4 leq(x3, 6)
+#constraint c5 leq(x4, 6)
+#constraint c6 leq(x5, 6)
+#constraint c7 leq(x6, 6)
+#constraint c8 leq(x7, 6)
+#constraint c9 leq(x8, 6)
+#constraint c10 leq(x9, 6)
+projection p1 10 * 10 + (x0*x0 - 10*cos(2*pi*x0)) + (x1*x1 - 10*cos(2*pi*x1)) + (x2*x2 - 10*cos(2*pi*x2)) + (x3*x3 - 10*cos(2*pi*x3)) + (x4*x4 - 10*cos(2*pi*x4)) + (x5*x5 - 10*cos(2*pi*x5)) + (x6*x6 - 10*cos(2*pi*x6)) + (x7*x7 - 10*cos(2*pi*x7)) + (x8*x8 - 10*cos(2*pi*x8)) + (x9*x9 - 10*cos(2*pi*x9))
+minimize p1

@@ -22,4 +22,11 @@ constraint c12 leq(x2+r2,10)
 constraint c13 leq(y2+r2,10)
 constraint c14 geq(x2-r2,0)
 constraint c15 geq(y2-r2,0)
-
+constraint c16 leq(r0-r1, 0.001)
+constraint c17 leq(r0-r2, 0.001)
+constraint c18 leq(r1-r2, 0.001)
+constraint c19 geq(r0-r1, 0.0)
+constraint c20 geq(r0-r2, 0.0)
+constraint c21 geq(r1-r2, 0.0)
+projection p1 r0+r1+r2
+maximize p1
