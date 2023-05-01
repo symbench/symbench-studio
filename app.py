@@ -27,6 +27,8 @@ def main():
 
     st.title('Symbench Studio')
 
+    
+
     app_mode = create_sidebar()
     app_functions[app_mode]()
 
