@@ -5,6 +5,16 @@ from constants import PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS, SOLVERS
 
 import re
 import subprocess
+import sys
+import time
+
+# try:
+#     import symbench_dataset
+#     print("symbench dataset is installed.")
+# except ModuleNotFoundError:
+#     print("symbench dataset is not installed, exiting.")
+#     sys.exit(1)
+
 
 
 def solve_problem(problem_name, solver_name):
@@ -13,6 +23,36 @@ def solve_problem(problem_name, solver_name):
     else:
         input_file_path = os.path.join(PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
     st.write(f"solving problem with input file {input_file_path} using solver {solver_name}")
+
+    solve_base_cmd = "python -m symbench_dataset solve --problem [] --solver ()"
+    
+    assert solver_name in SOLVERS
+    solve_cmd = solve_base_cmd.replace("[]", problem_name).replace("()", solver_name)
+    print(f" ==== running command {solve_cmd.split(' ')}")
+    process = subprocess.Popen(solve_cmd.split(" "), stdout=subprocess.PIPE)
+
+    while True:
+        output = process.stdout.readline()
+        if output == b"" and process.poll() is not None:
+            break
+        if output:
+            yield output.strip()
+    rc = process.poll()
+    return rc
+
+    # if solver_name == "pymoo":
+    #     print("pymoo")
+    #     subprocess.call(solve_base_cmd.split(" "))
+
+    # elif solver_name == "constraint_prog":
+    #     print("constraint_prog")
+    # elif solver_name == "z3":
+    #     print("z3")
+    # elif solver_name == "GA_simple":
+    #     print("GA_simple")
+    # elif solver_name == "scipy":
+    #     print("scipy")
+
 
 def load_input_file(problem_name):
     file_path = os.path.join(PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
@@ -75,9 +115,25 @@ if 'input_text_area' not in st.session_state:
     st.session_state.input_text_area = load_input_file(problem_name)
     st.session_state.user_modified = False
 
-input_text_area = st.text_area("Edit the input file:", st.session_state.input_text_area, height=500, key="input_text_area", on_change=on_text_area_change)
+with st.expander("Input File"):
+    input_text_area = st.text_area("Edit the input file:", st.session_state.input_text_area, height=500, key="input_text_area", on_change=on_text_area_change)
 reset_button = main_container.button("Reset to Original", on_click=lambda: st.session_state.pop("input_text_area", None))
 validate_button = main_container.button("Validate Input File", on_click=validate_user_input_file)
 
 solver_selection = main_container.selectbox("Select a solver:", SOLVERS)
-solve_button = main_container.button("Solve", on_click=lambda: solve_problem(problem_name, solver_selection))
+solve_button = main_container.button("Solve")
+
+if solve_button:
+    output_lines = []
+    placeholder = st.empty()
+    buffer_time = 0.5
+    start_time = time.time()
+    for path in solve_problem(problem_name, solver_selection):
+        output_lines.append(path.decode("utf-8"))
+        if time.time() - start_time > buffer_time:
+            placeholder.write('\n'.join(output_lines))
+            output_lines = []
+            start_time = time.time()
+    if output_lines:
+        placeholder.write('\n'.join(output_lines))
+        #placeholder.write(path.decode("utf-8"))
