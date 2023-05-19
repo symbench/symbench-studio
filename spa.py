@@ -1,12 +1,14 @@
 import streamlit as st
 import os
 import shutil
-from constants import PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS, SOLVERS
+from constants import PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS, SOLVERS, RESULTS_ABSPATH
 
 import re
 import subprocess
 import sys
 import time
+import pandas as pd
+import plotly.express as px
 
 # try:
 #     import symbench_dataset
@@ -16,15 +18,14 @@ import time
 #     sys.exit(1)
 
 
-
 def solve_problem(problem_name, solver_name):
     if st.session_state.user_modified:
         input_file_path = os.path.join(USER_PROBLEM_INPUTS, problem_name, "user_input.txt")
     else:
         input_file_path = os.path.join(PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
-    st.write(f"solving problem with input file {input_file_path} using solver {solver_name}")
+    #st.write(f"solving problem with input file {input_file_path} using solver {solver_name}")
 
-    solve_base_cmd = "python -m symbench_dataset solve --problem [] --solver ()"
+    solve_base_cmd = "symbench-dataset solve --problem [] --solver ()"
     
     assert solver_name in SOLVERS
     solve_cmd = solve_base_cmd.replace("[]", problem_name).replace("()", solver_name)
@@ -123,17 +124,22 @@ validate_button = main_container.button("Validate Input File", on_click=validate
 solver_selection = main_container.selectbox("Select a solver:", SOLVERS)
 solve_button = main_container.button("Solve")
 
+result_csv = None
+
 if solve_button:
     output_lines = []
-    placeholder = st.empty()
+    placeholder = st.text_area(f"Solve progress of problem: {problem_name} with solver {solver_selection}")
     buffer_time = 0.5
     start_time = time.time()
-    for path in solve_problem(problem_name, solver_selection):
-        output_lines.append(path.decode("utf-8"))
-        if time.time() - start_time > buffer_time:
-            placeholder.write('\n'.join(output_lines))
-            output_lines = []
-            start_time = time.time()
-    if output_lines:
-        placeholder.write('\n'.join(output_lines))
-        #placeholder.write(path.decode("utf-8"))
+    for solve_update in solve_problem(problem_name, solver_selection):
+        st.write(solve_update.decode("utf-8"))
+    
+    result_csv = os.path.join(RESULTS_ABSPATH, solver_selection, f"result_{problem_name}.csv")
+    print(f"result csv is: {result_csv}")
+
+if result_csv:
+    result_df = pd.read_csv(result_csv)
+    st.write(result_df)
+
+
+
