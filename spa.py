@@ -14,6 +14,10 @@ import uuid
 
 def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
+    if st.session_state.from_user:
+        if "_user" in st.session_state.problem_name:
+            st.session_state.problem_name = st.session_state.problem_name.replace("_user", "")
+
     solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {st.session_state.solver_name}"
 
     if st.session_state.solver_name == "pymoo" and num_generations is not None:
@@ -67,24 +71,27 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
 def load_input_file():
 
-    problem_name = st.session_state.problem_name
-    if "_user" in problem_name:
-        problem_name = problem_name.replace("_user", "")
-    if st.session_state.from_user:
-        file_path = os.path.join(USER_PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
-    else:
-        file_path = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
+    #if "_user" in problem_name:
+    #    problem_name = problem_name.replace("_user", "")
+    #    st.session_state.from_user = True
+    #if st.session_state.from_user:
+    file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
+    #else:
+    #    file_path = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
     print(f"loading default input file at: {file_path}")
     with open(file_path, "r") as f:
         content = f.read()
+    validate_user_input(content)
     print(content)
     st.session_state.input_text_area = content
 
 
 def save_user_modified_input_file(content):
-    if "_user" in st.session_state.problem_name:
-        problem_name = st.session_state.problem_name.replace("_user", "")
-    file_path = os.path.join(USER_PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
+    #if "_user" in st.session_state.problem_name:
+    #    problem_name = st.session_state.problem_name.replace("_user", "")
+    #if st.session_state.from_user:
+    
+    file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
     
     # remove empty lines for parser
     #content = [line for line in content if line.strip() != ""]
@@ -94,7 +101,7 @@ def save_user_modified_input_file(content):
     print(f"saving user modified input file at {file_path}")
     with open(file_path, "w") as f:
         f.write(content)
-    st.session_state.from_user = True
+    #st.session_state.from_user = True
 
 
 def on_text_area_change():
@@ -105,8 +112,8 @@ def on_text_area_change():
         if result is True:
             problem_description_container.success("Valid input file")
             print(f"saving content: {st.session_state.input_text_area}")
-            save_user_modified_input_file(content)
             st.session_state.from_user = True
+            save_user_modified_input_file(content)
             st.session_state.base_save_path = USER_RESULTS_ABSPATH
             problem_description_container.write("Saved user modified file")
         st.session_state.previous_input_text_area = content
@@ -164,6 +171,7 @@ def validate_user_input(content):
 
 def reset_text_area():
     print("resetting text area")
+    st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
     load_input_file()
     st.session_state.from_user = False
     st.session_state.base_save_path = DEFAULT_RESULTS_ABSPATH
@@ -199,11 +207,6 @@ def graph_results():
         trace2 = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='p1 and p2')
     else:
         trace2 = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[0]], mode='markers', name='p1 and p2')
-    # else:
-    #     trace2 = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[0]], mode='markers', name='p1 and p2')
-
-    #trace1 = go.Scatter(x=df['x1'], y=df['x2'], mode='markers', name='x1 and x2')
-    #trace2 = go.Scatter(x=df['p1'], y=df['p2'], mode='markers', name='p1 and p2')
 
     fig.add_trace(trace1)
     fig.add_trace(trace2)
@@ -216,7 +219,7 @@ def graph_results():
     )
 
     # Show the plot
-    solve_container.plotly_chart(fig, use_container_width=True)
+    graph_container.plotly_chart(fig, use_container_width=True)
 
 
 
@@ -231,6 +234,8 @@ if 'problem_name' not in st.session_state:
     st.session_state.problem_name = ""
 if 'solver_name' not in st.session_state:
     st.session_state.solver_name = ""
+if 'base_input_path' not in st.session_state:
+    st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
 if 'from_user' not in st.session_state:
     st.session_state.from_user = False
 if 'base_save_path' not in st.session_state:
@@ -262,15 +267,15 @@ graph_container = st.container()
 
 # main container logic
 with main_container:
-    include_user_problems_checkbox = main_container.checkbox("List user-defined problems", value=False)
+    #include_user_problems_checkbox = main_container.checkbox("Save user-defined", value=False)
 
     problem_name_previous = st.session_state.problem_name
     solver_name_previous = st.session_state.solver_name
 
-    if include_user_problems_checkbox:
-        st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted([""] + [x + "_user" for x in PROBLEMS] + PROBLEMS))
-    else:
-        st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted([""] + PROBLEMS)) 
+    # if include_user_problems_checkbox:
+    #     st.session_state.base_save_path = USER_RESULTS_ABSPATH
+    
+    st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(PROBLEMS))
 
     st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS)
 
@@ -299,7 +304,7 @@ with problem_description_container:
             )
 
             if st.session_state.solver_name == "pymoo":
-                num_generations = solve_col.slider("Number of generations", min_value=20, max_value=200, value=50, step=10, key="num_generations")
+                num_generations = solve_col.slider("Number of generations", min_value=20, max_value=500, value=50, step=10, key="num_generations")
             elif st.session_state.solver_name == "constraint_prog":
                 num_points = solve_col.slider("Number of points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
                 num_iters = reset_col.slider("Number of iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
@@ -335,10 +340,9 @@ with solve_container:
                 end_time = time.time()
                 print(f" **** Solve time: {end_time - start_time} **** ")
 
-with graph_container:
-    if st.session_state.result_csv_path != "":
-        with st.expander("Solution", expanded=True):
-            with st.spinner("Saving results"):
-                while not os.path.exists(st.session_state.result_csv_path):
-                    time.sleep(1)
-                graph_results()
+if st.session_state.result_csv_path != "":
+    #with st.expander("Solution", expanded=True):
+    with st.spinner("Saving results"):
+        while not os.path.exists(st.session_state.result_csv_path):
+            time.sleep(1)
+    graph_results()
