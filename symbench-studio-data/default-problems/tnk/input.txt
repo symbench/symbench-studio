@@ -6,4 +6,3 @@ projection p1 x1
 projection p2 x2
 minimize p1
 minimize p2
-

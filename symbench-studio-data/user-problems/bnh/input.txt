@@ -1,0 +1,5 @@
+variable x1 0 5
+variable x2 0 3
+constraint c1 leq(0.04*x2
+minimize p1
+minimize p2

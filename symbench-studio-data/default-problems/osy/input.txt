@@ -14,4 +14,3 @@ projection p1 -25*(x1 - 2)**2 - (x2 - 2)**2 - (x3 - 1)**2 - (x4 - 4)**2 - (x5 - 
 projection p2 x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2
 minimize p1
 minimize p2
-
