@@ -142,7 +142,7 @@ def validate_user_input(content):
         elif optimize_pattern.match(line):
             line_formats.add('optimize')
         else:
-            st.error(f"Invalid format at line {line_number}: {line}")
+            problem_description_container.error(f"Invalid format at line {line_number}: {line}")
             return False
         
         line_number += 1
@@ -299,10 +299,10 @@ with problem_description_container:
             )
 
             if st.session_state.solver_name == "pymoo":
-                num_generations = problem_description_container.slider("Number of generations", min_value=20, max_value=200, value=50, step=10, key="num_generations")
+                num_generations = solve_col.slider("Number of generations", min_value=20, max_value=200, value=50, step=10, key="num_generations")
             elif st.session_state.solver_name == "constraint_prog":
-                num_points = problem_description_container.slider("Number of points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
-                num_iters = problem_description_container.slider("Number of iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
+                num_points = solve_col.slider("Number of points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
+                num_iters = reset_col.slider("Number of iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
 
 
         reset_col.button("Reset Input", on_click=reset_text_area)
