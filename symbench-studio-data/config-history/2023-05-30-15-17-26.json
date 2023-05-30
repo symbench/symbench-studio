@@ -1,0 +1,1 @@
+{"problem": "tnk", "pymoo": {"num_generations": 50, "execution_time": 3.337846040725708}, "constraint_prog": {"num_points": 1000, "num_iters": 10, "execution_time": 0.7547237873077393}}
