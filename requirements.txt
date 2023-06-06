@@ -10,9 +10,7 @@ certifi==2022.12.7
 charset-normalizer==3.1.0
 click==8.1.3
 cma==3.2.2
--e git+ssh://git@github.com/symbench/constraint-prog.git@40b195e4e4afeb102110e87161a7f1fbde9dad68#egg=constraint_prog&subdirectory=../../constraint-prog
 contourpy==1.0.7
--e git+ssh://git@github.com/symbench/cp-problems-generator.git@030f2b73e0aea249598131f75ea4bb282c9a78ff#egg=cp_problems_generator&subdirectory=../../cp-problems-generator
 cycler==0.11.0
 decorator==5.1.1
 Deprecated==1.2.13
@@ -58,7 +56,6 @@ scipy==1.10.1
 six==1.16.0
 smmap==5.0.0
 streamlit==1.21.0
--e git+ssh://git@github.com/symbench/symbench-dataset.git@415c7542e2ecacf143c84d0a196460ce00a7329c#egg=symbench_dataset&subdirectory=../../symbench-dataset
 sympy==1.11.1
 toml==0.10.2
 toolz==0.12.0

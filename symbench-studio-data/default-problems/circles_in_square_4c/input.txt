@@ -1,0 +1,36 @@
+variable x0 0 10
+variable y0 0 10
+variable r0 0 5.0
+variable x1 0 10
+variable y1 0 10
+variable r1 0 5.0
+variable x2 0 10
+variable y2 0 10
+variable r2 0 5.0
+variable x3 0 10
+variable y3 0 10
+variable r3 0 5.0
+constraint c1 geq((x0-x1)^2+(y0-y1)^2-(r0+r1)^2,0)
+constraint c2 geq((x0-x2)^2+(y0-y2)^2-(r0+r2)^2,0)
+constraint c3 geq((x0-x3)^2+(y0-y3)^2-(r0+r3)^2,0)
+constraint c4 geq((x1-x2)^2+(y1-y2)^2-(r1+r2)^2,0)
+constraint c5 geq((x1-x3)^2+(y1-y3)^2-(r1+r3)^2,0)
+constraint c6 geq((x2-x3)^2+(y2-y3)^2-(r2+r3)^2,0)
+constraint c7 leq(x0+r0,10)
+constraint c8 leq(y0+r0,10)
+constraint c9 geq(x0-r0,0)
+constraint c10 geq(y0-r0,0)
+constraint c11 leq(x1+r1,10)
+constraint c12 leq(y1+r1,10)
+constraint c13 geq(x1-r1,0)
+constraint c14 geq(y1-r1,0)
+constraint c15 leq(x2+r2,10)
+constraint c16 leq(y2+r2,10)
+constraint c17 geq(x2-r2,0)
+constraint c18 geq(y2-r2,0)
+constraint c19 leq(x3+r3,10)
+constraint c20 leq(y3+r3,10)
+constraint c21 geq(x3-r3,0)
+constraint c22 geq(y3-r3,0)
+projection p1 r0+r1+r2+r3
+maximize p1

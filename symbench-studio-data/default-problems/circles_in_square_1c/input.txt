@@ -1,0 +1,9 @@
+variable x0 0 10
+variable y0 0 10
+variable r0 0 5.0
+constraint c1 leq(x0+r0,10)
+constraint c2 leq(y0+r0,10)
+constraint c3 geq(x0-r0,0)
+constraint c4 geq(y0-r0,0)
+projection p1 r0
+maximize p1

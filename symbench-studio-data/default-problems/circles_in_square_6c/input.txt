@@ -1,0 +1,59 @@
+variable x0 0 10
+variable y0 0 10
+variable r0 0 5.0
+variable x1 0 10
+variable y1 0 10
+variable r1 0 5.0
+variable x2 0 10
+variable y2 0 10
+variable r2 0 5.0
+variable x3 0 10
+variable y3 0 10
+variable r3 0 5.0
+variable x4 0 10
+variable y4 0 10
+variable r4 0 5.0
+variable x5 0 10
+variable y5 0 10
+variable r5 0 5.0
+constraint c1 geq((x0-x1)^2+(y0-y1)^2-(r0+r1)^2,0)
+constraint c2 geq((x0-x2)^2+(y0-y2)^2-(r0+r2)^2,0)
+constraint c3 geq((x0-x3)^2+(y0-y3)^2-(r0+r3)^2,0)
+constraint c4 geq((x0-x4)^2+(y0-y4)^2-(r0+r4)^2,0)
+constraint c5 geq((x0-x5)^2+(y0-y5)^2-(r0+r5)^2,0)
+constraint c6 geq((x1-x2)^2+(y1-y2)^2-(r1+r2)^2,0)
+constraint c7 geq((x1-x3)^2+(y1-y3)^2-(r1+r3)^2,0)
+constraint c8 geq((x1-x4)^2+(y1-y4)^2-(r1+r4)^2,0)
+constraint c9 geq((x1-x5)^2+(y1-y5)^2-(r1+r5)^2,0)
+constraint c10 geq((x2-x3)^2+(y2-y3)^2-(r2+r3)^2,0)
+constraint c11 geq((x2-x4)^2+(y2-y4)^2-(r2+r4)^2,0)
+constraint c12 geq((x2-x5)^2+(y2-y5)^2-(r2+r5)^2,0)
+constraint c13 geq((x3-x4)^2+(y3-y4)^2-(r3+r4)^2,0)
+constraint c14 geq((x3-x5)^2+(y3-y5)^2-(r3+r5)^2,0)
+constraint c15 geq((x4-x5)^2+(y4-y5)^2-(r4+r5)^2,0)
+constraint c16 leq(x0+r0,10)
+constraint c17 leq(y0+r0,10)
+constraint c18 geq(x0-r0,0)
+constraint c19 geq(y0-r0,0)
+constraint c20 leq(x1+r1,10)
+constraint c21 leq(y1+r1,10)
+constraint c22 geq(x1-r1,0)
+constraint c23 geq(y1-r1,0)
+constraint c24 leq(x2+r2,10)
+constraint c25 leq(y2+r2,10)
+constraint c26 geq(x2-r2,0)
+constraint c27 geq(y2-r2,0)
+constraint c28 leq(x3+r3,10)
+constraint c29 leq(y3+r3,10)
+constraint c30 geq(x3-r3,0)
+constraint c31 geq(y3-r3,0)
+constraint c32 leq(x4+r4,10)
+constraint c33 leq(y4+r4,10)
+constraint c34 geq(x4-r4,0)
+constraint c35 geq(y4-r4,0)
+constraint c36 leq(x5+r5,10)
+constraint c37 leq(y5+r5,10)
+constraint c38 geq(x5-r5,0)
+constraint c39 geq(y5-r5,0)
+projection p1 r0+r1+r2+r3+r4+r5
+maximize p1

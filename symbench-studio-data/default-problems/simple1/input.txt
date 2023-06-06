@@ -1,0 +1,8 @@
+variable x 0 2
+variable y 0 2
+constraint c1 leq(x+y, 1)
+constraint c2 leq(x+y, 2)
+projection p1 x-y
+projection p2 2*y
+maximize p1
+minimize p2

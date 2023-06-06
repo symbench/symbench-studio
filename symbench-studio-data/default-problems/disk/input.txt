@@ -1,0 +1,15 @@
+## A constraint-satisfaction problem to solve x*x + y*y <= 1 such that:
+## - x in [-2,2]
+## - y in [-2,2]
+## and the goal is to:
+## - maximize 2 * sqrt(x*x + y*y)
+variable x -2 2.5
+variable y -2 2.5
+constraint c1 leq(sqrt(x*x+y*y),1)
+constraint c2 geq(x,0.5)
+projection d 2*sqrt(x*x+y*y)
+projection x1 x
+projection y1 y
+maximize d
+minimize x1
+minimize y1

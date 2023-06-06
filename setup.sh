@@ -2,19 +2,13 @@
 
 # ensure submodules are updated
 echo "Updating submodules..."
-git submodule update --init --recursive
+git submodule update --init
 
 # ensure submodules are installed as packages
 echo "Installing requirements..."
-for dir in `ls -d */`; do
-    # ignore pycache and symbench-studio-data
-    if [[ $dir == "__pycache__/" ]] || [[ $dir == "symbench-studio-data/" ]]; then
-        continue
-    fi
-    cd "$dir"
-    pip install -e .
-    cd ..
-done
+cd constraint-prog && pip install -e . && cd ..
+cd symbench-dataset && pip install -e . && cd ..
+cd cp-problems-generator && pip install -e . && cd ..
 
 # install requirements
 pip install -r requirements.txt

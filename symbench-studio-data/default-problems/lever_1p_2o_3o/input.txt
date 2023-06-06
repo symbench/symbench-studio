@@ -1,0 +1,18 @@
+# lever 10
+# left_size 1
+# left_mass 1
+# right_size 1
+# right_mass 1
+variable position_l0 0 4.0
+variable position_l1 0 4.0
+variable position_r0 6.0 10
+variable position_r1 6.0 10
+variable position_r2 6.0 10
+constraint c0 leq(1*(5.0-position_l0) + 1*(5.0-position_l0) - 1*(position_r0-5.0) - 1*(position_r1-5.0) - 1*(position_r1-5.0), 0.0001)
+constraint c1 geq(1*(5.0-position_l0) + 1*(5.0-position_l0) - 1*(position_r0-5.0) - 1*(position_r1-5.0) - 1*(position_r1-5.0), 0.0)
+constraint c2 geq(position_l0-position_l1, 1)
+constraint c3 geq(position_r0-position_r1, 1)
+constraint c4 geq(position_r0-position_r2, 1)
+constraint c5 geq(position_r1-position_r2, 1)
+projection p1 5.0-position_l0+5.0-position_l1+position_r0-5.0+position_r1-5.0+position_r2-5.0
+minimize p1

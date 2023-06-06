@@ -1,0 +1,19 @@
+variable x0 0 10
+variable y0 0 10
+variable x1 0 10
+variable y1 0 10
+variable r1 0 5
+variable y2 0 10
+variable r2 0 5.0
+constraint c6 geq(x0-r0,0)
+constraint c7 geq(y0-r0,0)
+constraint c8 leq(x1+r1,10)
+constraint c9 leq(y1+r1,10)
+constraint c10 geq(x1-r1,0)
+constraint c11 geq(y1-r1,0)
+constraint c12 leq(x2+r2,10)
+constraint c13 leq(y2+r2,10)
+constraint c14 geq(x2-r2,0)
+constraint c15 geq(y2-r2,0)
+projection p1 r0+r1+r2
+maximize p1
