@@ -1,4 +1,5 @@
 import streamlit as st
+#from streamlit_ace import st_ace
 import os
 from constants import PROBLEMS, SOLVERS, DEFAULT_RESULTS_ABSPATH, USER_RESULTS_ABSPATH, DEFAULT_PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS_ABSPATH, CONFIG_HISTORY_PATH
 
@@ -10,6 +11,10 @@ import pandas as pd
 import plotly.express as px
 import uuid
 import json
+
+
+# allow continuous output from subprocess in streamlit text area
+os.environ['PYTHONUNBUFFERED'] = '1'
 
 
 def save_config():
@@ -85,10 +90,6 @@ def multi_solve_problem():
 
 def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
-    # if st.session_state.from_user:
-    #     if "_user" in st.session_state.problem_name:
-    #         st.session_state.problem_name = st.session_state.problem_name.replace("_user", "")
-
     solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {st.session_state.solver_name}"
 
     if st.session_state.solver_name == "pymoo" and num_generations is not None:
@@ -96,19 +97,16 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
     elif st.session_state.solver_name == "constraint_prog" and num_points is not None and num_iters is not None:
         solve_cmd = solve_cmd + f" --num_points {num_points} --num_iters {num_iters}"
     
-    #problem_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
-
     if st.session_state.from_user:
         st.session_state.base_input_path = USER_PROBLEM_INPUTS_ABSPATH
         input_file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
         solve_cmd += " --user"
-        #problem_input_path = USER_PROBLEM_INPUTS_ABSPATH
 
     input_file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
     
     print(f"solving problem with input file {input_file_path} using solver {st.session_state.solver_name}")
     print(f" ==== running command {solve_cmd.split(' ')}")
-    #st.write(f" ==== running command {solve_cmd}")
+
     process = subprocess.Popen(solve_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}.csv")
@@ -266,9 +264,9 @@ def graph_results():
         )
 
         # Show the plot
-        graph_container.plotly_chart(fig, use_container_width=True)
+        solve_container.plotly_chart(fig, use_container_width=True)
 
-    elif st.session_state.result_csv_paths:  # multiple results
+    elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple results
         
         # show the df of each result
         df_list = []
@@ -295,7 +293,7 @@ def graph_results():
         )
 
         # Show the plot
-        graph_container.plotly_chart(fig, use_container_width=True)
+        solve_container.plotly_chart(fig, use_container_width=True)
 
 
 # state
@@ -358,18 +356,17 @@ print(st.session_state)
 
 main_container = st.container()
 main_container.title("Symbench Constraint Solver")
-
 problem_col, solver_col = main_container.columns([1, 1], gap="small")
-compare_solvers = solver_col.checkbox("Compare solvers", value=False)
-st.session_state.compare_solvers = compare_solvers
+st.session_state.compare_solvers = solver_col.checkbox("Compare 2 or more solvers", value=False)
+
+solver_config_container = st.container()
+solver_config_container.header("Solver Configuration")
 
 problem_description_container = st.container()
 problem_description_container.title("Problem Description")
-solve_col, reset_col = problem_description_container.columns([1, 1], gap="small")
 
 solve_container = st.container()
 solve_container.title("Results")
-graph_container = st.container()
 
 # main container logic
 with main_container:
@@ -379,114 +376,125 @@ with main_container:
 
     st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(PROBLEMS)[::-1])
 
-    if st.session_state.compare_solvers:  # multi selection
-        st.session_state.multiple_solvers = solver_col.multiselect("Select solvers:", SOLVERS)
-    else:  # single selection
-        st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS)
+    with solver_config_container:
+        if st.session_state.compare_solvers:  # multi selection
+            st.session_state.multiple_solvers = solver_col.multiselect("Select solvers:", SOLVERS)
+            if len(st.session_state.multiple_solvers) >= 2:
+                multi_solver_cols = solver_config_container.columns(len(st.session_state.multiple_solvers))
+                for i, solver_name in enumerate(st.session_state.multiple_solvers):
+                    multi_solver_cols[i].subheader(solver_name)
+                    if solver_name == "pymoo":
+                        num_generations = multi_solver_cols[i].slider("# generations", min_value=20, max_value=100, value=50)
+                        st.session_state.multi_solve_config[solver_name] = {"num_generations": num_generations}
+                    elif solver_name == "constraint_prog":
+                        num_points = multi_solver_cols[i].slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
+                        num_iters = multi_solver_cols[i].slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
+                        st.session_state.multi_solve_config[solver_name] = {"num_points": num_points, "num_iters": num_iters}
+            else:
+                st.error("Select at least 2 solvers to compare performance")
+        else:  # single selection
+            st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS)
+            solver_name = st.session_state.solver_name
+            if solver_name == "pymoo":
+                    num_generations = solver_config_container.slider("# generations", min_value=20, max_value=100, value=50)
+                    st.session_state.multi_solve_config[solver_name] = {"num_generations": num_generations}
+            elif st.session_state.solver_name == "constraint_prog":
+                num_points = solver_config_container.slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
+                num_iters = solver_config_container.slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
+                st.session_state.multi_solve_config[solver_name] = {"num_points": num_points, "num_iters": num_iters}
 
-    # reset past results on option change
+    # reset past results on option change - hacky state reset
     if st.session_state.solver_name != solver_name_previous:
         st.session_state.result_csv_path = ""
+        st.session_state.result_csv_paths = []
+        st.session_state.solve_complete = False
+        st.session_state.compare_solvers = False
+        st.session_state.multiple_solvers = []
 
     if st.session_state.problem_name != problem_name_previous:
         st.session_state.result_csv_path = ""
+        st.session_state.result_csv_paths = []
+        st.session_state.solve_complete = False
 
-# problem description container logic
-with problem_description_container:
 
-    if st.session_state.previous_problem_name != st.session_state.problem_name and st.session_state.problem_name != "":
-        load_input_file()
-        st.session_state.previous_problem_name = st.session_state.problem_name
+    with problem_description_container:
 
-    if st.session_state.problem_name != "":
-        with st.expander("Edit Problem Description", expanded=True):
-            input_text_area = st.text_area(
-                "Each problem must contain at least 1 of 'variable', 'constraint', 'projection', and 'minimize/maximize'. Use Cmd or Ctrl + Enter to save changes",
-                st.session_state.input_text_area,
-                height=200,
-                key=st.session_state.input_text_area_key,
-                on_change=on_text_area_change,
-            )
+        if st.session_state.previous_problem_name != st.session_state.problem_name and st.session_state.problem_name != "":
+            load_input_file()
+            st.session_state.previous_problem_name = st.session_state.problem_name
 
-            if len(st.session_state.multiple_solvers) > 1 and st.session_state.compare_solvers:  # solver comparison
-                num_generations = solve_col.slider("(pymoo) # generations", min_value=20, max_value=500, value=50, step=10, key="num_generations")
-                num_points = solve_col.slider("(constraint prog) # points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
-                num_iters = reset_col.slider("(constraint prog) # iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
-                st.session_state.multi_solve_config = {
-                    "problem": st.session_state.problem_name,
-                    "pymoo": {"num_generations": num_generations},
-                    "constraint_prog": {"num_points": num_points, "num_iters": num_iters},
-                }
-                multi_solver_cols = st.columns(len(st.session_state.multiple_solvers))
-                #print(f"multi solver cols: {multi_solver_cols}")
+        if st.session_state.problem_name != "":
+            with st.expander("Edit Problem Description", expanded=True):
+                input_text_area = st.text_area(
+                    "Each problem must contain at least 1 of 'variable', 'constraint', 'projection', and 'minimize/maximize'. Use Cmd or Ctrl + Enter to save changes",
+                    st.session_state.input_text_area,
+                    height=200,
+                    key=st.session_state.input_text_area_key,
+                    on_change=on_text_area_change,
+                )
 
-            elif st.session_state.solver_name == "pymoo":  # just pymoo
-                num_generations = solve_col.slider("Number of generations", min_value=20, max_value=500, value=50, step=10, key="num_generations")
-            elif st.session_state.solver_name == "constraint_prog":  # just constraint prog
-                num_points = solve_col.slider("Number of points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
-                num_iters = reset_col.slider("Number of iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
-
+        solve_col, reset_col = problem_description_container.columns([1, 1], gap="small")
+        #solve_col.button("Solve", on_click=solve_problem)
         reset_col.button("Reset Input", on_click=reset_text_area)
 
+    with solve_container:
 
-# solve container logic
-with solve_container:
+        if solve_col.button("Solve Problem"):
+            if st.session_state.multiple_solvers:
+                st.write(f"Solving {st.session_state.problem_name} with {st.session_state.multiple_solvers}...")
+            else:
+                st.write(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}...")
+            with st.spinner():
+                solve_output = ""
+                solve_progress_placeholder = solve_container.empty()
 
-    if solve_col.button("Solve Problem"):
-        with st.spinner(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}..."):
-            solve_output = ""
-            solve_progress_placeholder = st.empty()
+                if st.session_state.compare_solvers is False:
+                    with st.expander("", expanded=True):
+                        start_time = time.time()
+                        if st.session_state.solver_name == "pymoo":
+                            for solve_update in solve_problem(num_generations=num_generations):
+                                solve_output += solve_update
+                                solve_progress_placeholder.text_area("", solve_output, height=300)
+                        elif st.session_state.solver_name == "constraint_prog":
+                            for solve_update in solve_problem(num_points=num_points, num_iters=num_iters):
+                                solve_output += solve_update
+                                solve_progress_placeholder.text_area("", solve_output, height=300)
+                        else:
+                            for solve_update in solve_problem():
+                                solve_output += solve_update
+                                solve_progress_placeholder.text_area("", solve_output, height=300) 
+                        end_time = time.time()
+                        print(f" **** Solve time: {end_time - start_time} **** ")
+                else:  # comparins multiple solvers
+                    with st.expander("Solver Comparison", expanded=True):
+                        multi_result_cols = solve_container.columns(len(st.session_state.multiple_solvers))
+                        start_time = time.time()
+                        solve_outputs = {solver_name: "" for solver_name in st.session_state.multiple_solvers}
+                        solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(st.session_state.multiple_solvers)}
 
-            if st.session_state.compare_solvers is False:
-                with st.expander("Solve Progress", expanded=True):
-                    start_time = time.time()
-                    if st.session_state.solver_name == "pymoo":
-                        for solve_update in solve_problem(num_generations=num_generations):
-                            solve_output += solve_update
-                            solve_progress_placeholder.text_area("Solve Progress", solve_output, height=300)
-                    elif st.session_state.solver_name == "constraint_prog":
-                        for solve_update in solve_problem(num_points=num_points, num_iters=num_iters):
-                            solve_output += solve_update
-                            solve_progress_placeholder.text_area("Solve Progress", solve_output, height=300)
-                    else:
-                        for solve_update in solve_problem():
-                            solve_output += solve_update
-                            solve_progress_placeholder.text_area("Solve Progress", solve_output, height=300) 
-                    end_time = time.time()
-                    print(f" **** Solve time: {end_time - start_time} **** ")
-            else:  # comparins multiple solvers
-                with st.expander("Solver Comparison", expanded=True):
-                    start_time = time.time()
-                    solve_outputs = {solver_name: "" for solver_name in st.session_state.multiple_solvers}
-                    solve_progress_placeholders = {solver_name: multi_solver_cols[i].empty() for i, solver_name in enumerate(st.session_state.multiple_solvers)}
+                        for solver_name, info_type, data in multi_solve_problem():
+                            if info_type == "output":
+                                solve_outputs[solver_name] += data
+                                solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
 
-                    for solver_name, info_type, data in multi_solve_problem():
-                        if info_type == "output":
-                            solve_outputs[solver_name] += data
-                            solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
+                                if "Execution time" in data:
+                                    time_str = data.split("Execution time:")[1].split(" s")[0].strip()
+                                    execution_time = float(time_str)
+                                    st.session_state.multi_solve_config[solver_name]["execution_time"] = execution_time
+                        end_time = time.time()
+                        print(f" **** Solve time: {end_time - start_time} **** ")
+            st.session_state.solve_complete = True
 
-                            if "Execution time" in data:
-                                time_str = data.split("Execution time:")[1].split(" s")[0].strip()
-                                execution_time = float(time_str)
-                                st.session_state.multi_solve_config[solver_name]["execution_time"] = execution_time
-                        # elif info_type == "time":
-                        #     elapsed_time = data
-                        #     print(f"solver {solver_name} took {elapsed_time} seconds to complete")
-
-                    end_time = time.time()
-                    print(f" **** Solve time: {end_time - start_time} **** ")
-
-if st.session_state.result_csv_path != "" or st.session_state.result_csv_paths:
-    with st.expander("Solution", expanded=True):
-        graph_results()
+        if (st.session_state.result_csv_path != "" or st.session_state.result_csv_paths) and st.session_state.solve_complete:
+            with st.expander("Solutions", expanded=True):
+                graph_results()
 
 
-compare_container = st.container()
-
-if len(st.session_state.multiple_solvers) > 1:
+if st.session_state.multiple_solvers:
+    solver_comparison_container = st.container()
+    solver_comparison_container.title("Solver Performance")
     solver_check = st.session_state.multiple_solvers[0]
+    # check to see if the solve has completed, indicated by an execution time entry in the config
     if "execution_time" in st.session_state.multi_solve_config[solver_check]:
-        compare_container.write(st.session_state.multi_solve_config)
-        compare_container.button("Save configuration", on_click=save_config)
-
-
+        solver_comparison_container.write(st.session_state.multi_solve_config)
+        solver_comparison_container.button("Save configuration", on_click=save_config)
