@@ -1,7 +1,7 @@
 import streamlit as st
 #from streamlit_ace import st_ace
 import os
-from constants import PROBLEMS, SOLVERS, DEFAULT_RESULTS_ABSPATH, USER_RESULTS_ABSPATH, DEFAULT_PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS_ABSPATH, CONFIG_HISTORY_PATH
+from constants import PROBLEMS, SOLVERS, SYMBENCH_DATASET_PATH, DEFAULT_RESULTS_ABSPATH, USER_RESULTS_ABSPATH, DEFAULT_PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS_ABSPATH
 
 import re
 import subprocess
@@ -16,21 +16,52 @@ import json
 # allow continuous output from subprocess in streamlit text area
 os.environ['PYTHONUNBUFFERED'] = '1'
 
+DEFAULT_CONFIGS = {
+    "pymoo": {
+        "num_generations": 100
+    },
+    "constraint_prog": {
+        "num_points": 10000,
+        "num_of_iterations": 10
+    }
+}
 
-def save_config():
+def save_solver_config():
     """ store the results of the solve configuration in a json under the history folder """
 
-    time_str = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()).replace(" ", "_").replace(":", "-")
-    filename = f"{time_str}.json"
+    solver_name = st.session_state.solver_name
+    config_name = st.session_state.solver_config_name
+    
+    print(f"(save_solver_config) config name: {config_name}")
 
-    print(f"Saving configuration to {filename}")
 
-    # Write dictionary to json file
-    filepath = os.path.join(CONFIG_HISTORY_PATH, filename)
-    with open(filepath, 'w') as f:
-        json.dump(st.session_state.multi_solve_config, f)
+    for solver in st.session_state.multiple_solvers + [solver_name]:
+        
+        solver_config = st.session_state.solver_config[solver]
+        assert isinstance(solver_config, dict)
+        assert solver_config != {}
+        solver_config_filename = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, st.session_state.problem_name, f"{solver}_config.json")
 
-    compare_container.success(f"Configuration saved to {filepath}")
+        print(f"(save_solver_config) solver config: {solver_config}")
+        print(f"(save_solver_config) saving configuration for {solver} to {solver_config_filename}")
+        print(f"(save_solver_config) config file: {solver_config_filename}")
+
+        if not os.path.exists(solver_config_filename):
+            # config does not yet exist, create it with default
+            print(f"(save_solver_config) {config_name, solver_config}")
+            with open(solver_config_filename, 'w') as f:
+                json.dump({"default" : DEFAULT_CONFIGS[solver]}, f, indent=3)
+
+        else:  # config exists already, add to it
+            # get current config
+            current_config = {}
+            if os.path.exists(solver_config_filename):
+                with open(solver_config_filename, 'r') as f:
+                    current_config = json.load(f)
+
+            with open(solver_config_filename, 'w') as f:
+                current_config.update({config_name : solver_config})
+                json.dump(current_config, f, indent=3)
 
 
 def multi_solve_problem():
@@ -39,11 +70,11 @@ def multi_solve_problem():
 
     solve_cmds = []
     for solver in st.session_state.multiple_solvers:
-        settings = st.session_state.multi_solve_config[solver]
+        settings = st.session_state.solver_config[solver]
         if solver == "pymoo":
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --ngen {settings['num_generations']}"
-        elif solver == "constraint_prog": 
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --num_points {settings['num_points']} --num_iters {settings['num_iters']}"
+            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" # --ngen {settings['num_generations']}"
+        elif solver == "constraint_prog":
+            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
         
         if st.session_state.from_user:
             solve_cmd += " --user"
@@ -51,7 +82,7 @@ def multi_solve_problem():
 
     # set csv paths
     for solver in st.session_state.multiple_solvers:
-        csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}.csv")
+        csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name}.csv")
         st.session_state.result_csv_paths.append(csv_path)
 
     def run_commands(solve_cmds):
@@ -92,10 +123,10 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {st.session_state.solver_name}"
 
-    if st.session_state.solver_name == "pymoo" and num_generations is not None:
-        solve_cmd = solve_cmd + f" --ngen {num_generations}"
-    elif st.session_state.solver_name == "constraint_prog" and num_points is not None and num_iters is not None:
-        solve_cmd = solve_cmd + f" --num_points {num_points} --num_iters {num_iters}"
+    # if st.session_state.solver_name == "pymoo" and num_generations is not None:
+    #     solve_cmd = solve_cmd # + f" --ngen {num_generations}"
+    # elif st.session_state.solver_name == "constraint_prog" and num_points is not None and num_iters is not None:
+    #     solve_cmd = solve_cmd + f" --num_points {num_points}" # --num_iters {num_iters}"
     
     if st.session_state.from_user:
         st.session_state.base_input_path = USER_PROBLEM_INPUTS_ABSPATH
@@ -109,7 +140,7 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     process = subprocess.Popen(solve_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}.csv")
+    result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name}.csv")
     st.session_state.result_csv_path = result_csv_path
     print(f"result csv path is: {result_csv_path}")
 
@@ -266,7 +297,7 @@ def graph_results():
         # Show the plot
         solve_container.plotly_chart(fig, use_container_width=True)
 
-    elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple results
+    elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple solvers
         
         # show the df of each result
         df_list = []
@@ -313,7 +344,7 @@ if 'solver_name' not in st.session_state:
     st.session_state.solver_name = ""
 
 # default path to text inputs for the problem
-if 'base_input_path' not in st.session_state:
+if 'base_input_path' not in st.session_state: # todo path change
     st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
 
 # user modified input file, which changes the path to results
@@ -321,8 +352,12 @@ if 'from_user' not in st.session_state:
     st.session_state.from_user = False
 
 # default path to save results
-if 'base_save_path' not in st.session_state:
+if 'base_save_path' not in st.session_state: # todo path change
     st.session_state.base_save_path = DEFAULT_RESULTS_ABSPATH
+
+# path to input file
+if 'result_txt_path' not in st.session_state:
+    st.session_state.result_txt_path = ""
 
 # path to results csv file
 if 'result_csv_path' not in st.session_state:
@@ -346,8 +381,11 @@ if 'multiple_solvers' not in st.session_state:
 if 'result_csv_paths' not in st.session_state:
     st.session_state.result_csv_paths = []
 
-if 'multi_solve_config' not in st.session_state:
-    st.session_state.multi_solve_config = {}
+if 'solver_config' not in st.session_state:
+    st.session_state.solver_config = {}
+
+if 'solver_config_name' not in st.session_state:
+    st.session_state.solver_config_name = "default"
 
 print(st.session_state)
 
@@ -384,12 +422,12 @@ with main_container:
                 for i, solver_name in enumerate(st.session_state.multiple_solvers):
                     multi_solver_cols[i].subheader(solver_name)
                     if solver_name == "pymoo":
-                        num_generations = multi_solver_cols[i].slider("# generations", min_value=20, max_value=100, value=50)
-                        st.session_state.multi_solve_config[solver_name] = {"num_generations": num_generations}
+                        num_generations = multi_solver_cols[i].slider("# generations", min_value=20, max_value=100, step=5, value=50)
+                        st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
                     elif solver_name == "constraint_prog":
-                        num_points = multi_solver_cols[i].slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
-                        num_iters = multi_solver_cols[i].slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
-                        st.session_state.multi_solve_config[solver_name] = {"num_points": num_points, "num_iters": num_iters}
+                        num_points = multi_solver_cols[i].slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=10, key="num_points")
+                        num_iters = multi_solver_cols[i].slider("# iterations", min_value=10, max_value=100, value=10, step=5, key="num_iters")
+                        st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
             else:
                 st.error("Select at least 2 solvers to compare performance")
         else:  # single selection
@@ -397,11 +435,21 @@ with main_container:
             solver_name = st.session_state.solver_name
             if solver_name == "pymoo":
                     num_generations = solver_config_container.slider("# generations", min_value=20, max_value=100, value=50)
-                    st.session_state.multi_solve_config[solver_name] = {"num_generations": num_generations}
+                    st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
             elif st.session_state.solver_name == "constraint_prog":
                 num_points = solver_config_container.slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
                 num_iters = solver_config_container.slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
-                st.session_state.multi_solve_config[solver_name] = {"num_points": num_points, "num_iters": num_iters}
+                st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
+
+            if st.checkbox("Name this config", value=False):
+                st.session_state.solver_config_name = st.text_input("Name this config:", value="")
+                if st.session_state.solver_config_name == "default" or st.session_state.solver_config_name == "":
+                    st.warning("Config name can't be empty or 'default'")
+                if st.button("Save"):
+                    save_solver_config()
+            else:  # default config
+                save_solver_config()
+
 
     # reset past results on option change - hacky state reset
     if st.session_state.solver_name != solver_name_previous:
@@ -480,7 +528,7 @@ with main_container:
                                 if "Execution time" in data:
                                     time_str = data.split("Execution time:")[1].split(" s")[0].strip()
                                     execution_time = float(time_str)
-                                    st.session_state.multi_solve_config[solver_name]["execution_time"] = execution_time
+                                    st.session_state.solver_config[solver_name]["execution_time"] = execution_time
                         end_time = time.time()
                         print(f" **** Solve time: {end_time - start_time} **** ")
             st.session_state.solve_complete = True
@@ -490,11 +538,7 @@ with main_container:
                 graph_results()
 
 
-if st.session_state.multiple_solvers:
-    solver_comparison_container = st.container()
-    solver_comparison_container.title("Solver Performance")
-    solver_check = st.session_state.multiple_solvers[0]
-    # check to see if the solve has completed, indicated by an execution time entry in the config
-    if "execution_time" in st.session_state.multi_solve_config[solver_check]:
-        solver_comparison_container.write(st.session_state.multi_solve_config)
-        solver_comparison_container.button("Save configuration", on_click=save_config)
+# if st.session_state.multiple_solvers:
+#     solver_comparison_container = st.container()
+#     solver_comparison_container.title("Solver Performance")
+#     solver_check = st.session_state.multiple_solvers[0]
