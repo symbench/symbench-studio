@@ -9,8 +9,10 @@ import sys
 import time
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import uuid
 import json
+
 
 
 # allow continuous output from subprocess in streamlit text area
@@ -29,17 +31,19 @@ DEFAULT_CONFIGS = {
 def save_solver_config():
     """ store the results of the solve configuration in a json under the history folder """
 
-    solver_name = st.session_state.solver_name
-    config_name = st.session_state.solver_config_name
-    
-    print(f"(save_solver_config) config name: {config_name}")
+    for solver in st.session_state.multiple_solvers + [st.session_state.solver_name]:
 
-
-    for solver in st.session_state.multiple_solvers + [solver_name]:
+        print(f"solver is {solver}")
         
         solver_config = st.session_state.solver_config[solver]
-        assert isinstance(solver_config, dict)
-        assert solver_config != {}
+
+        if solver in st.session_state.solver_config_name:
+            solver_config_name = st.session_state.solver_config_name[solver]
+        else:
+            solver_config_name = "default"
+
+        # assert isinstance(solver_config, dict)
+        # assert solver_config != {}
         solver_config_filename = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, st.session_state.problem_name, f"{solver}_config.json")
 
         print(f"(save_solver_config) solver config: {solver_config}")
@@ -48,10 +52,10 @@ def save_solver_config():
 
         if not os.path.exists(solver_config_filename):
             # config does not yet exist, create it with default
-            print(f"(save_solver_config) {config_name, solver_config}")
+            print(f"(save_solver_config) {solver_config_name, solver_config}")
             with open(solver_config_filename, 'w') as f:
                 json.dump({"default" : DEFAULT_CONFIGS[solver]}, f, indent=3)
-
+            
         else:  # config exists already, add to it
             # get current config
             current_config = {}
@@ -60,7 +64,7 @@ def save_solver_config():
                     current_config = json.load(f)
 
             with open(solver_config_filename, 'w') as f:
-                current_config.update({config_name : solver_config})
+                current_config.update({solver_config_name : solver_config})
                 json.dump(current_config, f, indent=3)
 
 
@@ -81,8 +85,8 @@ def multi_solve_problem():
         solve_cmds.append((solver, solve_cmd))
 
     # set csv paths
-    for solver in st.session_state.multiple_solvers:
-        csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name}.csv")
+    #for solver in st.session_state.multiple_solvers:
+        csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name[solver]}.csv")
         st.session_state.result_csv_paths.append(csv_path)
 
     def run_commands(solve_cmds):
@@ -140,7 +144,9 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     process = subprocess.Popen(solve_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name}.csv")
+    print(f"st.session_state.solver_config_name: {st.session_state.solver_config_name}")
+    solver_config_name = st.session_state.solver_config_name[st.session_state.solver_name]
+    result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}", f"{solver_config_name}.csv")
     st.session_state.result_csv_path = result_csv_path
     print(f"result csv path is: {result_csv_path}")
 
@@ -259,73 +265,75 @@ def reset_text_area():
     st.session_state.input_text_area_key = str(uuid.uuid4())  # hack the widget key for updates
     # st.session_state.pop("input_text_area", None)
     
-def graph_results():
-
-    import plotly.express as px
-    import plotly.graph_objects as go
-    import pandas as pd
-
-    if st.session_state.result_csv_path != "":  # single solver
+def graph_results(dfs, cols=None):
+    """ plot a list of dfs """
+    if st.session_state.result_csv_path:  # single solver
 
         # Read data from CSV file
-        df = pd.read_csv(st.session_state.result_csv_path)
 
-        solve_container.write("Solution points")
-        solve_container.write(df)
+        # print(f"reading csv from: {st.session_state.result_csv_path}")
+        # df = pd.read_csv(st.session_state.result_csv_path)
 
-        # scatter plot
-        fig = go.Figure()
+        if len(dfs) == 1:
+            df = dfs[0]
+            solve_container.write("Solution points")
+            solve_container.write(df)
 
-        print(f"columns: {df.columns}")
+            # scatter plot
+            fig = go.Figure()
 
-        alt_cols = [col for col in df.columns if col.startswith("p")]  #or col.startswith("y"))]
+            print(f"columns: {df.columns}")
 
-        print(f"alt_cols: {alt_cols}")
+            alt_cols = [col for col in df.columns if col.startswith("p")]  #or col.startswith("y"))]
 
-        if len(alt_cols) > 1:
-            trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='(p1, p2)')
+            print(f"alt_cols: {alt_cols}")
 
-        fig.add_trace(trace)
-
-        # Customize the plot
-        fig.update_layout(
-            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.solver_name} (num sols={len(df)})',
-            xaxis_title='p1',
-            yaxis_title='p2'
-        )
-
-        # Show the plot
-        solve_container.plotly_chart(fig, use_container_width=True)
-
-    elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple solvers
-        
-        # show the df of each result
-        df_list = []
-        for i, result_csv_path in enumerate(st.session_state.result_csv_paths):
-            df = pd.read_csv(result_csv_path)
-            df_list.append(df)
-            multi_solver_cols[i].write(df)
-
-        # plot each result on the same plot
-        fig = go.Figure()
-
-        # for each df, get alt_cols, and add trace to fig
-        for i, df in enumerate(df_list):
-            alt_cols = [col for col in df.columns if col.startswith("p")]
             if len(alt_cols) > 1:
-                trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{st.session_state.multiple_solvers[i]} (num sols={len(df)})')
-                fig.add_trace(trace)
+                trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='(p1, p2)')
 
-        # Customize the plot
-        fig.update_layout(
-            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
-            xaxis_title='p1',
-            yaxis_title='p2'
-        )
+            fig.add_trace(trace)
 
-        # Show the plot
-        solve_container.plotly_chart(fig, use_container_width=True)
+            # Customize the plot
+            fig.update_layout(
+                title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.solver_name} (num sols={len(df)})',
+                xaxis_title='p1',
+                yaxis_title='p2'
+            )
 
+            # Show the plot
+            solve_container.plotly_chart(fig, use_container_width=True)
+
+        else:
+            #elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple solvers
+        # show the df of each result
+            # df_list = []
+            # for i, result_csv_path in enumerate(st.session_state.result_csv_paths):
+            #     df = pd.read_csv(result_csv_path)
+            #     df_list.append(df)
+            #     multi_solver_cols[i].write(df)
+
+            # plot each result on the same plot
+            fig = go.Figure()
+
+            # for each df, get alt_cols, and add trace to fig
+            for i, df in enumerate(dfs):
+
+                cols[i].write(df)
+
+                alt_cols = [col for col in df.columns if col.startswith("p")]
+                if len(alt_cols) > 1:
+                    trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{st.session_state.multiple_solvers[i]} (num sols={len(df)})')
+                    fig.add_trace(trace)
+
+            # Customize the plot
+            fig.update_layout(
+                title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
+                xaxis_title='p1',
+                yaxis_title='p2'
+            )
+
+            # Show the plot
+            solve_container.plotly_chart(fig, use_container_width=True)
 
 # state
 
@@ -385,7 +393,7 @@ if 'solver_config' not in st.session_state:
     st.session_state.solver_config = {}
 
 if 'solver_config_name' not in st.session_state:
-    st.session_state.solver_config_name = "default"
+    st.session_state.solver_config_name = {}
 
 print(st.session_state)
 
@@ -424,10 +432,36 @@ with main_container:
                     if solver_name == "pymoo":
                         num_generations = multi_solver_cols[i].slider("# generations", min_value=20, max_value=100, step=5, value=50)
                         st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
+                        # checkbox for saving the config
+                        with multi_solver_cols[i]:
+                            if st.checkbox("Name this config", value=False, key=f"pymoo_solver_config_{i+1}"):
+                                pymoo_config_name = st.text_input("Name this config:", key="pymoo_config", value="")
+                                if pymoo_config_name == "default" or pymoo_config_name == "":
+                                    st.warning("Config name can't be empty or 'default'")
+                                else:
+                                    st.session_state.solver_config_name[solver_name] = pymoo_config_name
+                                    #if st.button("Save"):
+                                        #save_solver_config()
+                            else:
+                                st.session_state.solver_config_name[solver_name] = "default"
+
                     elif solver_name == "constraint_prog":
                         num_points = multi_solver_cols[i].slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=10, key="num_points")
                         num_iters = multi_solver_cols[i].slider("# iterations", min_value=10, max_value=100, value=10, step=5, key="num_iters")
                         st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
+
+                        with multi_solver_cols[i]:
+                            if st.checkbox("Name this config", value=False, key=f"constraintprog_solver_config_{i+1}"):
+                                constraint_prog_config_name = st.text_input("Name this config:", key="constraintprog_config", value="")
+                                if constraint_prog_config_name == "default" or constraint_prog_config_name == "":
+                                    st.warning("Config name can't be empty or 'default'")
+                                else:
+                                    st.session_state.solver_config_name[solver_name] = constraint_prog_config_name
+                                    #if st.button("Save"):
+                                        #save_solver_config()
+                            else:
+                                st.session_state.solver_config_name[solver_name] = "default"
+                save_solver_config()
             else:
                 st.error("Select at least 2 solvers to compare performance")
         else:  # single selection
@@ -436,33 +470,35 @@ with main_container:
             if solver_name == "pymoo":
                     num_generations = solver_config_container.slider("# generations", min_value=20, max_value=100, value=50)
                     st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
-            elif st.session_state.solver_name == "constraint_prog":
+            elif solver_name == "constraint_prog":
                 num_points = solver_config_container.slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
                 num_iters = solver_config_container.slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
                 st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
 
-            if st.checkbox("Name this config", value=False):
-                st.session_state.solver_config_name = st.text_input("Name this config:", value="")
-                if st.session_state.solver_config_name == "default" or st.session_state.solver_config_name == "":
+            if st.checkbox("Name this config", value=False, key="single_solver_config"):
+                single_solver_config_name = st.text_input("Name this config:", value="")
+                if single_solver_config_name == "default" or single_solver_config_name == "":
                     st.warning("Config name can't be empty or 'default'")
-                if st.button("Save"):
-                    save_solver_config()
-            else:  # default config
-                save_solver_config()
-
+                else:
+                    # set config name for selected solver
+                    st.session_state.solver_config_name[solver_name] = single_solver_config_name
+                    #if st.button("Save"):
+            else:
+                st.session_state.solver_config_name[solver_name] = "default"
+            # else:  # session state default config name is 'default'
+            #     save_solver_config()
+            save_solver_config()
 
     # reset past results on option change - hacky state reset
-    if st.session_state.solver_name != solver_name_previous:
-        st.session_state.result_csv_path = ""
-        st.session_state.result_csv_paths = []
-        st.session_state.solve_complete = False
-        st.session_state.compare_solvers = False
-        st.session_state.multiple_solvers = []
-
-    if st.session_state.problem_name != problem_name_previous:
-        st.session_state.result_csv_path = ""
-        st.session_state.result_csv_paths = []
-        st.session_state.solve_complete = False
+    # if st.session_state.problem_name != problem_name_previous or st.session_state.solver_name != solver_name_previous:
+    #     st.session_state.result_csv_path = ""
+    #     st.session_state.result_csv_paths = []
+    #     st.session_state.solve_complete = False
+    #     st.session_state.compare_solvers = False
+    #     st.session_state.multiple_solvers = []
+    #     st.session_state.solver_name = ""
+    #     st.session_state.solver_config = {}
+    #     st.session_state.solver_config_name = {}
 
 
     with problem_description_container:
@@ -533,9 +569,21 @@ with main_container:
                         print(f" **** Solve time: {end_time - start_time} **** ")
             st.session_state.solve_complete = True
 
-        if (st.session_state.result_csv_path != "" or st.session_state.result_csv_paths) and st.session_state.solve_complete:
-            with st.expander("Solutions", expanded=True):
-                graph_results()
+        # if (st.session_state.result_csv_path != "" or st.session_state.result_csv_paths) and st.session_state.solve_complete:
+        #     with st.expander("Solutions", expanded=True):
+        #         graph_results()
+
+        if st.session_state.result_csv_path and st.session_state.solve_complete: # single solver
+            with st.expander("Solver Performance", expanded=True):
+                df = pd.read_csv(st.session_state.result_csv_path)
+                graph_results([df])
+        elif st.session_state.result_csv_paths and st.session_state.solve_complete:  # multi solver
+            with st.expander("Solver Performance", expanded=True):
+                dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
+                graph_results(dfs, cols=multi_solver_cols)
+
+
+
 
 
 # if st.session_state.multiple_solvers:
