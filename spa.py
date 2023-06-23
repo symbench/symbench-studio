@@ -75,17 +75,19 @@ def multi_solve_problem():
     solve_cmds = []
     for solver in st.session_state.multiple_solvers:
         settings = st.session_state.solver_config[solver]
+        config_name = st.session_state.solver_config_name[solver]
+
         if solver == "pymoo":
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" # --ngen {settings['num_generations']}"
+            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" # --ngen {settings['num_generations']}"
         elif solver == "constraint_prog":
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
+            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
         
         if st.session_state.from_user:
             solve_cmd += " --user"
         solve_cmds.append((solver, solve_cmd))
 
     # set csv paths
-    #for solver in st.session_state.multiple_solvers:
+    for solver in st.session_state.multiple_solvers:
         csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name[solver]}.csv")
         st.session_state.result_csv_paths.append(csv_path)
 
@@ -125,7 +127,10 @@ def multi_solve_problem():
 
 def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
-    solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {st.session_state.solver_name}"
+    solver = st.session_state.solver_name
+    problem = st.session_state.problem_name
+    config_name = st.session_state.solver_config_name[solver]
+    solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver} --config {config_name}"
 
     # if st.session_state.solver_name == "pymoo" and num_generations is not None:
     #     solve_cmd = solve_cmd # + f" --ngen {num_generations}"
@@ -134,19 +139,19 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
     
     if st.session_state.from_user:
         st.session_state.base_input_path = USER_PROBLEM_INPUTS_ABSPATH
-        input_file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
+        input_file_path = os.path.join(st.session_state.base_input_path, problem, "input.txt")
         solve_cmd += " --user"
 
-    input_file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
+    input_file_path = os.path.join(st.session_state.base_input_path, problem, "input.txt")
     
-    print(f"solving problem with input file {input_file_path} using solver {st.session_state.solver_name}")
+    print(f"solving problem with input file {input_file_path} using solver {solver}")
     print(f" ==== running command {solve_cmd.split(' ')}")
 
     process = subprocess.Popen(solve_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    print(f"st.session_state.solver_config_name: {st.session_state.solver_config_name}")
-    solver_config_name = st.session_state.solver_config_name[st.session_state.solver_name]
-    result_csv_path = os.path.join(st.session_state.base_save_path, st.session_state.solver_name, f"result_{st.session_state.problem_name}", f"{solver_config_name}.csv")
+    print(f"st.session_state.solver_config_name: {config_name}")
+    #solver_config_name = st.session_state.solver_config_name[st.session_state.solver_name]
+    result_csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{problem}", f"{config_name}.csv")
     st.session_state.result_csv_path = result_csv_path
     print(f"result csv path is: {result_csv_path}")
 
@@ -158,6 +163,8 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
             yield output.decode("utf-8")
 
     rc = process.poll()
+
+    st.session_state.solve_complete = True
 
     return rc
 
@@ -267,43 +274,43 @@ def reset_text_area():
     
 def graph_results(dfs, cols=None):
     """ plot a list of dfs """
-    if st.session_state.result_csv_path:  # single solver
+    if not st.session_state.compare_solvers:  # single solver
 
         # Read data from CSV file
 
         # print(f"reading csv from: {st.session_state.result_csv_path}")
         # df = pd.read_csv(st.session_state.result_csv_path)
 
-        if len(dfs) == 1:
-            df = dfs[0]
-            solve_container.write("Solution points")
-            solve_container.write(df)
+        #if len(dfs) == 1:
+        df = dfs[0]
+        solve_container.write("Solution points")
+        solve_container.write(df)
 
-            # scatter plot
-            fig = go.Figure()
+        # scatter plot
+        fig = go.Figure()
 
-            print(f"columns: {df.columns}")
+        print(f"columns: {df.columns}")
 
-            alt_cols = [col for col in df.columns if col.startswith("p")]  #or col.startswith("y"))]
+        alt_cols = [col for col in df.columns if col.startswith("p")]  #or col.startswith("y"))]
 
-            print(f"alt_cols: {alt_cols}")
+        print(f"alt_cols: {alt_cols}")
 
-            if len(alt_cols) > 1:
-                trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='(p1, p2)')
+        if len(alt_cols) > 1:
+            trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='(p1, p2)')
 
-            fig.add_trace(trace)
+        fig.add_trace(trace)
 
-            # Customize the plot
-            fig.update_layout(
-                title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.solver_name} (num sols={len(df)})',
-                xaxis_title='p1',
-                yaxis_title='p2'
-            )
+        # Customize the plot
+        fig.update_layout(
+            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.solver_name} (num sols={len(df)})',
+            xaxis_title='p1',
+            yaxis_title='p2'
+        )
 
-            # Show the plot
-            solve_container.plotly_chart(fig, use_container_width=True)
+        # Show the plot
+        solve_container.plotly_chart(fig, use_container_width=True)
 
-        else:
+    else:
             #elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple solvers
         # show the df of each result
             # df_list = []
@@ -313,27 +320,27 @@ def graph_results(dfs, cols=None):
             #     multi_solver_cols[i].write(df)
 
             # plot each result on the same plot
-            fig = go.Figure()
+        fig = go.Figure()
 
-            # for each df, get alt_cols, and add trace to fig
-            for i, df in enumerate(dfs):
+        # for each df, get alt_cols, and add trace to fig
+        for i, df in enumerate(dfs):
 
-                cols[i].write(df)
+            cols[i].write(df)
 
-                alt_cols = [col for col in df.columns if col.startswith("p")]
-                if len(alt_cols) > 1:
-                    trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{st.session_state.multiple_solvers[i]} (num sols={len(df)})')
-                    fig.add_trace(trace)
+            alt_cols = [col for col in df.columns if col.startswith("p")]
+            if len(alt_cols) > 1:
+                trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{st.session_state.multiple_solvers[i]} (num sols={len(df)})')
+                fig.add_trace(trace)
 
-            # Customize the plot
-            fig.update_layout(
-                title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
-                xaxis_title='p1',
-                yaxis_title='p2'
-            )
+        # Customize the plot
+        fig.update_layout(
+            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
+            xaxis_title='p1',
+            yaxis_title='p2'
+        )
 
-            # Show the plot
-            solve_container.plotly_chart(fig, use_container_width=True)
+        # Show the plot
+        solve_container.plotly_chart(fig, use_container_width=True)
 
 # state
 
@@ -394,6 +401,9 @@ if 'solver_config' not in st.session_state:
 
 if 'solver_config_name' not in st.session_state:
     st.session_state.solver_config_name = {}
+
+if 'solve_complete' not in st.session_state:
+    st.session_state.solve_complete = False
 
 print(st.session_state)
 
@@ -549,6 +559,9 @@ with main_container:
                                 solve_progress_placeholder.text_area("", solve_output, height=300) 
                         end_time = time.time()
                         print(f" **** Solve time: {end_time - start_time} **** ")
+
+                        #with st.expander("Solver Performance", expanded=True):
+    
                 else:  # comparins multiple solvers
                     with st.expander("Solver Comparison", expanded=True):
                         multi_result_cols = solve_container.columns(len(st.session_state.multiple_solvers))
@@ -567,26 +580,22 @@ with main_container:
                                     st.session_state.solver_config[solver_name]["execution_time"] = execution_time
                         end_time = time.time()
                         print(f" **** Solve time: {end_time - start_time} **** ")
-            st.session_state.solve_complete = True
+                        st.session_state.solve_complete = True
 
-        # if (st.session_state.result_csv_path != "" or st.session_state.result_csv_paths) and st.session_state.solve_complete:
-        #     with st.expander("Solutions", expanded=True):
-        #         graph_results()
-
-        if st.session_state.result_csv_path and st.session_state.solve_complete: # single solver
-            with st.expander("Solver Performance", expanded=True):
-                df = pd.read_csv(st.session_state.result_csv_path)
-                graph_results([df])
-        elif st.session_state.result_csv_paths and st.session_state.solve_complete:  # multi solver
-            with st.expander("Solver Performance", expanded=True):
+        with st.expander("Solver Performance", expanded=True):
+            if st.session_state.compare_solvers and st.session_state.solve_complete:
+                print("GRAPH")
                 dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
                 graph_results(dfs, cols=multi_solver_cols)
+            elif st.session_state.result_csv_path and st.session_state.solve_complete:
+                    df = pd.read_csv(st.session_state.result_csv_path)
+                    graph_results([df])
 
-
-
-
-
-# if st.session_state.multiple_solvers:
-#     solver_comparison_container = st.container()
-#     solver_comparison_container.title("Solver Performance")
-#     solver_check = st.session_state.multiple_solvers[0]
+        # if st.session_state.result_csv_paths and st.session_state.solve_complete:  # multi solver
+        #     with st.expander("Solver Performance", expanded=True):
+        #         
+        # #if st.session_state.result_csv_path and st.session_state.solve_complete: # single solver
+        # elif os.path.exists(st.session_state.result_csv_path) and st.session_state.solve_complete:
+        #     with st.expander("Solver Performance", expanded=True):
+        #         df = pd.read_csv(st.session_state.result_csv_path)
+        #         graph_results([df])
