@@ -52,6 +52,7 @@ def save_solver_config():
 
         if not os.path.exists(solver_config_filename):
             # config does not yet exist, create it with default
+            os.makedirs(os.path.dirname(solver_config_filename), exist_ok=True)
             print(f"(save_solver_config) {solver_config_name, solver_config}")
             with open(solver_config_filename, 'w') as f:
                 json.dump({"default" : DEFAULT_CONFIGS[solver]}, f, indent=3)
