@@ -31,7 +31,8 @@ DEFAULT_CONFIGS = {
 def save_solver_config():
     """ store the results of the solve configuration in a json under the history folder """
 
-    for solver in st.session_state.multiple_solvers + [st.session_state.solver_name]:
+    all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+    for solver in all_solvers:
 
         print(f"solver is {solver}")
         
