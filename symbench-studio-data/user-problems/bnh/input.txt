@@ -1,8 +1,0 @@
-variable x1 0 5
-variable x2 0 8
-constraint c1 leq(0.04*x2**2 + 0.04*(x1 - 5)**2 - 1.0, 0)
-constraint c2 leq(-0.12987012987013*(x1 - 8)**2 - 0.12987012987013*(x2 + 3)**2 + 1.0, 0)
-projection p1 4*x1**2 + 4*x2**2
-projection p2 (x1 - 5)**2 + (x2 - 5)**2
-minimize p1
-minimize p2
