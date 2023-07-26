@@ -1,7 +1,8 @@
 import streamlit as st
 #from streamlit_ace import st_ace
 import os
-from constants import PROBLEMS, SOLVERS, SYMBENCH_DATASET_PATH, DEFAULT_RESULTS_ABSPATH, USER_RESULTS_ABSPATH, DEFAULT_PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS_ABSPATH
+from constants import PROBLEMS, SOLVERS, DEFAULT_CONFIGS, NUM_POINTS, NUM_ITERATIONS, CONFIG_SLIDER_SETTINGS
+from constants import SYMBENCH_DATASET_PATH, DEFAULT_RESULTS_ABSPATH, USER_RESULTS_ABSPATH, DEFAULT_PROBLEM_INPUTS_ABSPATH, USER_PROBLEM_INPUTS_ABSPATH
 
 import re
 import subprocess
@@ -18,57 +19,24 @@ import json
 # allow continuous output from subprocess in streamlit text area
 os.environ['PYTHONUNBUFFERED'] = '1'
 
-DEFAULT_CONFIGS = {
-    "pymoo": {
-        "num_generations": 100
-    },
-    "constraint_prog": {
-        "num_points": 10000,
-        "num_of_iterations": 10
-    }
-}
 
 def save_solver_config():
     """ store the results of the solve configuration in a json under the history folder """
 
     all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
     for solver in all_solvers:
-
         print(f"solver is {solver}")
-        
-        solver_config = st.session_state.solver_config[solver]
-
-        if solver in st.session_state.solver_config_name:
-            solver_config_name = st.session_state.solver_config_name[solver]
-        else:
-            solver_config_name = "default"
-
-        # assert isinstance(solver_config, dict)
-        # assert solver_config != {}
+        solver_config = st.session_state.all_configs[solver]
         solver_config_filename = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, st.session_state.problem_name, f"{solver}_config.json")
-
-        print(f"(save_solver_config) solver config: {solver_config}")
         print(f"(save_solver_config) saving configuration for {solver} to {solver_config_filename}")
-        print(f"(save_solver_config) config file: {solver_config_filename}")
 
         if not os.path.exists(solver_config_filename):
             # config does not yet exist, create it with default
             os.makedirs(os.path.dirname(solver_config_filename), exist_ok=True)
-            print(f"(save_solver_config) {solver_config_name, solver_config}")
-            with open(solver_config_filename, 'w') as f:
-                json.dump({"default" : DEFAULT_CONFIGS[solver]}, f, indent=3)
-            
-        else:  # config exists already, add to it
-            # get current config
-            current_config = {}
-            if os.path.exists(solver_config_filename):
-                with open(solver_config_filename, 'r') as f:
-                    current_config = json.load(f)
-
-            with open(solver_config_filename, 'w') as f:
-                current_config.update({solver_config_name : solver_config})
-                json.dump(current_config, f, indent=3)
-
+        
+        print(f"(save_solver_config) {solver_config}")
+        with open(solver_config_filename, 'w') as f:
+            json.dump(solver_config, f, indent=3)
 
 def multi_solve_problem():
     """ called for solver comparison option """
@@ -76,16 +44,17 @@ def multi_solve_problem():
 
     solve_cmds = []
     for solver in st.session_state.multiple_solvers:
-        settings = st.session_state.solver_config[solver]
-        config_name = st.session_state.solver_config_name[solver]
+        #MM TODO: settings = st.session_state.solver_config[solver]
+        #MM TODO: config_name = st.session_state.solver_config_name[solver]
 
-        if solver == "pymoo":
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" # --ngen {settings['num_generations']}"
-        elif solver == "constraint_prog":
-            solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
+        #MM TODO: if solver == "pymoo":
+        solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" # --ngen {settings['num_generations']}"
+        #MM TODO: solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" # --ngen {settings['num_generations']}"
+        #MM TODO: elif solver == "constraint_prog":
+        #MM TODO:     solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
         
-        if st.session_state.from_user:
-            solve_cmd += " --user"
+        #MM TODO: if st.session_state.from_user:
+        #MM TODO:    solve_cmd += " --user"
         solve_cmds.append((solver, solve_cmd))
 
     # set csv paths
@@ -126,13 +95,15 @@ def multi_solve_problem():
 
     return run_commands(solve_cmds)
 
-
+#def solve_problem(solver, config_name, user_defined=None):
 def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     solver = st.session_state.solver_name
     problem = st.session_state.problem_name
     config_name = st.session_state.solver_config_name[solver]
-    solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver} --config {config_name}"
+    #MM TODO: for now - solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver} --config {config_name}"
+    solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver}"
+
 
     # if st.session_state.solver_name == "pymoo" and num_generations is not None:
     #     solve_cmd = solve_cmd # + f" --ngen {num_generations}"
@@ -158,7 +129,9 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
     print(f"result csv path is: {result_csv_path}")
 
     while True:
+        print("In while loop (161)")
         output = process.stdout.readline()
+        print(f"output={output}")
         if output == b"" and process.poll() is not None:
             break
         if output:
@@ -187,6 +160,63 @@ def load_input_file():
     print(content)
     st.session_state.input_text_area = content
 
+def load_config_file(solver):
+    config_file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, f"{solver}_config.json")
+    current_config = {}
+    if os.path.exists(config_file_path):
+        with open(config_file_path, 'r') as f:
+            current_config = json.load(f)
+        return current_config
+    else:
+        print(f"config file: {config_file_path} does not exist")
+
+# Configuration file adjustment area
+def create_config_tabs(solver_name, config_column):
+    config_items = {}
+    if solver_name not in st.session_state.config_tabs_present.keys():
+        config_items = load_config_file(solver_name)
+        st.session_state.all_configs[solver_name] = config_items
+        st.session_state.config_tabs_present[solver_name] = True
+        st.session_state.new_config[solver_name] = False
+    else:
+        config_items = st.session_state.all_configs[solver_name]
+    
+    if config_column.button("Add new config", key="new_config"+solver_name):
+        st.session_state.new_config[solver_name] = True
+    if st.session_state.new_config[solver_name]:
+        requested_solver_config_name = config_column.text_input("Name this config:", value="", key="new_config_name"+solver_name)
+        if requested_solver_config_name == "default" or requested_solver_config_name == "":
+            config_column.warning("Config name can't be empty or 'default'")
+        else:
+            print(f"DEBUG (before new config add): all_config: {st.session_state.all_configs}")
+            print(f"DEBUG (before new config add): default values: {DEFAULT_CONFIGS[solver_name]}")
+            default_config_set = DEFAULT_CONFIGS[solver_name].copy()
+            st.session_state.all_configs[solver_name][requested_solver_config_name] = default_config_set
+            print(f"DEBUG (after new config add): all_config: {st.session_state.all_configs}")
+            print(f"DEBUG (before new config add): default values: {DEFAULT_CONFIGS[solver_name]}")
+            st.session_state.new_config[solver_name] = False
+            config_column.success(f"New configuration added for {solver_name}")
+
+    st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select configs:", st.session_state.all_configs[solver_name].keys())
+    config_column.write("Configuration options selected:")
+    if (len(st.session_state.selected_config_names[solver_name]) >= 1):
+        tabs = config_column.tabs(st.session_state.selected_config_names[solver_name])
+        for config_tab, config_name in zip(tabs, st.session_state.selected_config_names[solver_name]):
+            config_content = config_items[config_name]
+            with config_tab:
+                for config_slider in config_content:
+                    if config_slider in CONFIG_SLIDER_SETTINGS:
+                        config_slider_value = config_tab.slider(config_slider, min_value=CONFIG_SLIDER_SETTINGS[config_slider]["min_value"], max_value=CONFIG_SLIDER_SETTINGS[config_slider]["max_value"], value=int(config_content[config_slider]), step=CONFIG_SLIDER_SETTINGS[config_slider]["step"], key=CONFIG_SLIDER_SETTINGS[config_slider]["key"]+solver_name+config_name)
+                        st.session_state.all_configs[solver_name][config_name][config_slider] = config_slider_value
+                    else:
+                        st.error(f"Unknown configuration key: {config_slider}")
+                        slider_options = [key for key in CONFIG_SLIDER_SETTINGS]
+                        st.error(f"Available options are: {slider_options}")
+                        
+    print(f"DEBUG (create config): @@@@@@@@@ all_configs: {st.session_state.all_configs}")
+    print(f"DEBUG (create config): config_items: {config_items}")
+    print(f"DEBUG (create config): config_tabs_present: {st.session_state.config_tabs_present}")
+    print(f"DEBUG (create config): selected_config_names: {st.session_state.selected_config_names}")
 
 def save_user_modified_input_file(content):
     #if "_user" in st.session_state.problem_name:
@@ -346,7 +376,7 @@ def graph_results(dfs, cols=None):
 
 # state
 
-# user-editable area to adjust problem scpecification
+# user-editable area to adjust problem specification
 if 'input_text_area' not in st.session_state:
     st.session_state.input_text_area = ""
 
@@ -398,14 +428,22 @@ if 'multiple_solvers' not in st.session_state:
 if 'result_csv_paths' not in st.session_state:
     st.session_state.result_csv_paths = []
 
-if 'solver_config' not in st.session_state:
-    st.session_state.solver_config = {}
-
-if 'solver_config_name' not in st.session_state:
-    st.session_state.solver_config_name = {}
+if 'selected_config_names' not in st.session_state:
+    st.session_state.selected_config_names = {}
+    
+if 'all_configs' not in st.session_state:
+    st.session_state.all_configs = {}
 
 if 'solve_complete' not in st.session_state:
     st.session_state.solve_complete = False
+    
+# Used to add textbox and warnings when "Add new config" button is pressed
+if 'new_config' not in st.session_state:
+    st.session_state.new_config = {}
+    
+# Indicate when config tab is first being created to allow loading data from a file
+if 'config_tabs_present' not in st.session_state:
+    st.session_state.config_tabs_present = {}
 
 print(st.session_state)
 
@@ -421,14 +459,15 @@ solver_config_container = st.container()
 solver_config_container.header("Solver Configuration")
 
 problem_description_container = st.container()
-problem_description_container.title("Problem Description")
+problem_description_container.header("Problem Description")
 
 solve_container = st.container()
-solve_container.title("Results")
+solve_container.header("Results")
 
 # main container logic
 with main_container:
 
+    # MM TODO: are these two variables used anymore? use is commented out
     problem_name_previous = st.session_state.problem_name
     solver_name_previous = st.session_state.solver_name
 
@@ -441,77 +480,16 @@ with main_container:
                 multi_solver_cols = solver_config_container.columns(len(st.session_state.multiple_solvers))
                 for i, solver_name in enumerate(st.session_state.multiple_solvers):
                     multi_solver_cols[i].subheader(solver_name)
-                    if solver_name == "pymoo":
-                        num_generations = multi_solver_cols[i].slider("# generations", min_value=20, max_value=100, step=5, value=50)
-                        st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
-                        # checkbox for saving the config
-                        with multi_solver_cols[i]:
-                            if st.checkbox("Name this config", value=False, key=f"pymoo_solver_config_{i+1}"):
-                                pymoo_config_name = st.text_input("Name this config:", key="pymoo_config", value="")
-                                if pymoo_config_name == "default" or pymoo_config_name == "":
-                                    st.warning("Config name can't be empty or 'default'")
-                                else:
-                                    st.session_state.solver_config_name[solver_name] = pymoo_config_name
-                                    #if st.button("Save"):
-                                        #save_solver_config()
-                            else:
-                                st.session_state.solver_config_name[solver_name] = "default"
-
-                    elif solver_name == "constraint_prog":
-                        num_points = multi_solver_cols[i].slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=10, key="num_points")
-                        num_iters = multi_solver_cols[i].slider("# iterations", min_value=10, max_value=100, value=10, step=5, key="num_iters")
-                        st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
-
-                        with multi_solver_cols[i]:
-                            if st.checkbox("Name this config", value=False, key=f"constraintprog_solver_config_{i+1}"):
-                                constraint_prog_config_name = st.text_input("Name this config:", key="constraintprog_config", value="")
-                                if constraint_prog_config_name == "default" or constraint_prog_config_name == "":
-                                    st.warning("Config name can't be empty or 'default'")
-                                else:
-                                    st.session_state.solver_config_name[solver_name] = constraint_prog_config_name
-                                    #if st.button("Save"):
-                                        #save_solver_config()
-                            else:
-                                st.session_state.solver_config_name[solver_name] = "default"
-                save_solver_config()
+                    create_config_tabs(solver_name, multi_solver_cols[i])
             else:
                 st.error("Select at least 2 solvers to compare performance")
         else:  # single selection
             st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS)
             solver_name = st.session_state.solver_name
-            if solver_name == "pymoo":
-                    num_generations = solver_config_container.slider("# generations", min_value=20, max_value=100, value=50)
-                    st.session_state.solver_config[solver_name] = {"num_generations": num_generations}
-            elif solver_name == "constraint_prog":
-                num_points = solver_config_container.slider("# points per iteration", min_value=100, max_value=10000, value=1000, step=1000, key="num_points")
-                num_iters = solver_config_container.slider("# iterations", min_value=10, max_value=100, value=10, step=10, key="num_iters")
-                st.session_state.solver_config[solver_name] = {"num_points": num_points, "num_of_iterations": num_iters}
-
-            if st.checkbox("Name this config", value=False, key="single_solver_config"):
-                single_solver_config_name = st.text_input("Name this config:", value="")
-                if single_solver_config_name == "default" or single_solver_config_name == "":
-                    st.warning("Config name can't be empty or 'default'")
-                else:
-                    # set config name for selected solver
-                    st.session_state.solver_config_name[solver_name] = single_solver_config_name
-                    #if st.button("Save"):
-            else:
-                st.session_state.solver_config_name[solver_name] = "default"
-            # else:  # session state default config name is 'default'
-            #     save_solver_config()
-            save_solver_config()
-
-    # reset past results on option change - hacky state reset
-    # if st.session_state.problem_name != problem_name_previous or st.session_state.solver_name != solver_name_previous:
-    #     st.session_state.result_csv_path = ""
-    #     st.session_state.result_csv_paths = []
-    #     st.session_state.solve_complete = False
-    #     st.session_state.compare_solvers = False
-    #     st.session_state.multiple_solvers = []
-    #     st.session_state.solver_name = ""
-    #     st.session_state.solver_config = {}
-    #     st.session_state.solver_config_name = {}
-
+            multi_solver_cols = solver_config_container.columns(1)
+            multi_solver_cols[0].subheader(solver_name)
+            # Select configurations to use
+            create_config_tabs(solver_name, multi_solver_cols[0])
 
     with problem_description_container:
 
@@ -530,16 +508,20 @@ with main_container:
                 )
 
         solve_col, reset_col = problem_description_container.columns([1, 1], gap="small")
-        #solve_col.button("Solve", on_click=solve_problem)
-        reset_col.button("Reset Input", on_click=reset_text_area)
+        #MM TODO: hide the reset button for now
+        #reset_col.button("Reset Input", on_click=reset_text_area)
 
     with solve_container:
 
         if solve_col.button("Solve Problem"):
+            print(f"DEBUG: ********* saving config ************")
+            save_solver_config()
+            #MM TODO: STOPPED HERE - need to combine multi/single and use all_config
             if st.session_state.multiple_solvers:
                 st.write(f"Solving {st.session_state.problem_name} with {st.session_state.multiple_solvers}...")
-            else:
-                st.write(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}...")
+            #MM TODO: else may not be needed
+            #MM TODO: else:
+                #MM TODO: st.write(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}...")
             with st.spinner():
                 solve_output = ""
                 solve_progress_placeholder = solve_container.empty()
@@ -547,15 +529,12 @@ with main_container:
                 if st.session_state.compare_solvers is False:
                     with st.expander("", expanded=True):
                         start_time = time.time()
-                        if st.session_state.solver_name == "pymoo":
-                            for solve_update in solve_problem(num_generations=num_generations):
+                        if st.session_state.solver_name in SOLVERS:
+                            # MM TODO: plan to add configuration and user define information
+                            for solve_update in solve_problem():
                                 solve_output += solve_update
                                 solve_progress_placeholder.text_area("", solve_output, height=300)
-                        elif st.session_state.solver_name == "constraint_prog":
-                            for solve_update in solve_problem(num_points=num_points, num_iters=num_iters):
-                                solve_output += solve_update
-                                solve_progress_placeholder.text_area("", solve_output, height=300)
-                        else:
+                        else: # no valid solver selected
                             for solve_update in solve_problem():
                                 solve_output += solve_update
                                 solve_progress_placeholder.text_area("", solve_output, height=300) 
@@ -564,7 +543,7 @@ with main_container:
 
                         #with st.expander("Solver Performance", expanded=True):
     
-                else:  # comparins multiple solvers
+                else:  # comparings multiple solvers
                     with st.expander("Solver Comparison", expanded=True):
                         multi_result_cols = solve_container.columns(len(st.session_state.multiple_solvers))
                         start_time = time.time()
