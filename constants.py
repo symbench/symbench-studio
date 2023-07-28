@@ -1,7 +1,7 @@
 import os
 
-PROBLEMS = ["disk", "bnh", "osy", "tnk", "Harsh1", "Umesh1"] # "lever0"] # das-cmop
-SOLVERS = ["pymoo", "constraint_prog"] #, "z3", "GA_simple", "scipy"]
+PROBLEMS = ["disk", "bnh", "osy", "tnk"] 
+SOLVERS = ["pymoo", "constraint_prog"] #, "z3", "scipy"]
 DEFAULT_CONFIGS = {
     "pymoo": {
         "pop_size": 100,

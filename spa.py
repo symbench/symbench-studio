@@ -156,9 +156,9 @@ def load_config_file(solver):
     if os.path.exists(config_file_path):
         with open(config_file_path, 'r') as f:
             current_config = json.load(f)
-        return current_config
     else:
         print(f"config file: {config_file_path} does not exist")
+    return current_config
 
 # Configuration file adjustment area
 def create_config_tabs(solver_name, config_column):
@@ -183,26 +183,29 @@ def create_config_tabs(solver_name, config_column):
             st.session_state.new_config[solver_name] = False
             config_column.success(f"New configuration added for {solver_name}")
 
-    st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select configs:", st.session_state.all_configs[solver_name].keys())
-    config_column.write("Configuration options selected:")
-    if (len(st.session_state.selected_config_names[solver_name]) >= 1):
-        tabs = config_column.tabs(st.session_state.selected_config_names[solver_name])
-        for config_tab, config_name in zip(tabs, st.session_state.selected_config_names[solver_name]):
-            config_content = config_items[config_name]
-            with config_tab:
-                for config_slider in config_content:
-                    if config_slider in CONFIG_SLIDER_SETTINGS:
-                        config_slider_value = config_tab.slider(config_slider, min_value=CONFIG_SLIDER_SETTINGS[config_slider]["min_value"], max_value=CONFIG_SLIDER_SETTINGS[config_slider]["max_value"], value=int(config_content[config_slider]), step=CONFIG_SLIDER_SETTINGS[config_slider]["step"], key=CONFIG_SLIDER_SETTINGS[config_slider]["key"]+solver_name+config_name)
-                        st.session_state.all_configs[solver_name][config_name][config_slider] = config_slider_value
-                    else:
-                        st.error(f"Unknown configuration key: {config_slider}")
-                        slider_options = [key for key in CONFIG_SLIDER_SETTINGS]
-                        st.error(f"Available options are: {slider_options}")
-                        
-    #print(f"DEBUG (create config): @@@@@@@@@ all_configs: {st.session_state.all_configs}")
-    #print(f"DEBUG (create config): config_items: {config_items}")
-    #print(f"DEBUG (create config): config_tabs_present: {st.session_state.config_tabs_present}")
-    #print(f"DEBUG (create config): selected_config_names: {st.session_state.selected_config_names}")
+    if st.session_state.all_configs[solver_name]:
+        st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select configs:", st.session_state.all_configs[solver_name].keys())
+        config_column.write("Configuration options selected:")
+        if (len(st.session_state.selected_config_names[solver_name]) >= 1):
+            tabs = config_column.tabs(st.session_state.selected_config_names[solver_name])
+            for config_tab, config_name in zip(tabs, st.session_state.selected_config_names[solver_name]):
+                config_content = config_items[config_name]
+                with config_tab:
+                    for config_slider in config_content:
+                        if config_slider in CONFIG_SLIDER_SETTINGS:
+                            config_slider_value = config_tab.slider(config_slider, min_value=CONFIG_SLIDER_SETTINGS[config_slider]["min_value"], max_value=CONFIG_SLIDER_SETTINGS[config_slider]["max_value"], value=int(config_content[config_slider]), step=CONFIG_SLIDER_SETTINGS[config_slider]["step"], key=CONFIG_SLIDER_SETTINGS[config_slider]["key"]+solver_name+config_name)
+                            st.session_state.all_configs[solver_name][config_name][config_slider] = config_slider_value
+                        else:
+                            st.error(f"Unknown configuration key: {config_slider}")
+                            slider_options = [key for key in CONFIG_SLIDER_SETTINGS]
+                            st.error(f"Available options are: {slider_options}")
+                            
+        #print(f"DEBUG (create config): @@@@@@@@@ all_configs: {st.session_state.all_configs}")
+        #print(f"DEBUG (create config): config_items: {config_items}")
+        #print(f"DEBUG (create config): config_tabs_present: {st.session_state.config_tabs_present}")
+        #print(f"DEBUG (create config): selected_config_names: {st.session_state.selected_config_names}")
+    else:
+        config_column.warning(f"No configuration file available for {solver_name}")
 
 
 def save_user_modified_input_file(content):
@@ -445,6 +448,9 @@ solve_container.header("Results")
 with main_container:
     problem_name_previous = st.session_state.problem_name
     st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(PROBLEMS)[::-1])
+    if st.session_state.problem_name != problem_name_previous:
+        st.session_state.config_tabs_present = {}
+        st.session_state.all_configs = {}
 
     with solver_config_container:
         if st.session_state.compare_solvers:  # multi selection
