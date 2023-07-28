@@ -6,14 +6,12 @@ from constants import SYMBENCH_DATASET_PATH, DEFAULT_RESULTS_ABSPATH, USER_RESUL
 
 import re
 import subprocess
-import sys
 import time
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import uuid
 import json
-
 
 
 # allow continuous output from subprocess in streamlit text area
@@ -39,28 +37,27 @@ def save_solver_config():
             json.dump(solver_config, f, indent=3)
 
 def multi_solve_problem():
-    """ called for solver comparison option """
-    print("multi solve")
+    """ called for all solvers requested """
+    print("solve problem ...")
 
     solve_cmds = []
-    for solver in st.session_state.multiple_solvers:
-        #MM TODO: settings = st.session_state.solver_config[solver]
-        #MM TODO: config_name = st.session_state.solver_config_name[solver]
-
-        #MM TODO: if solver == "pymoo":
-        solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" # --ngen {settings['num_generations']}"
-        #MM TODO: solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" # --ngen {settings['num_generations']}"
-        #MM TODO: elif solver == "constraint_prog":
-        #MM TODO:     solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --config {config_name}" #--num_points {settings['num_points']} --num_iters {settings['num_iters']}"
-        
-        #MM TODO: if st.session_state.from_user:
-        #MM TODO:    solve_cmd += " --user"
+    all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+    #print(f"DEBUG: all solvers: {all_solvers}")
+    for solver in all_solvers:
+        solver_config_names = st.session_state.selected_config_names[solver]
+        #print(f"DEBUG: solver_config_names({solver}): {solver_config_names}")
+        #MM TODO: add `--configs <config list> - waiting for feature in symbench-dataset`
+        solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver}" 
         solve_cmds.append((solver, solve_cmd))
 
     # set csv paths
-    for solver in st.session_state.multiple_solvers:
-        csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{st.session_state.solver_config_name[solver]}.csv")
-        st.session_state.result_csv_paths.append(csv_path)
+    #print("DEBUG: setup csv paths ...")
+    st.session_state.result_csv_paths = []
+    for solver in all_solvers:
+        for config in st.session_state.selected_config_names[solver]:
+            csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}.csv")
+            st.session_state.result_csv_paths.append(csv_path)
+    #print(f"DEBUG: full csv path: {st.session_state.result_csv_paths}")
 
     def run_commands(solve_cmds):
         processes = []
@@ -95,15 +92,15 @@ def multi_solve_problem():
 
     return run_commands(solve_cmds)
 
-#def solve_problem(solver, config_name, user_defined=None):
+#MM: No longer used, single runs now call multi_solve_problem.  
+#    Left for now due to user input path, which is currently commented out in the main code but may be useful later
 def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     solver = st.session_state.solver_name
     problem = st.session_state.problem_name
     config_name = st.session_state.solver_config_name[solver]
-    #MM TODO: for now - solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver} --config {config_name}"
-    solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver}"
 
+    solve_cmd = f"symbench-dataset solve --problem {problem} --solver {solver}"
 
     # if st.session_state.solver_name == "pymoo" and num_generations is not None:
     #     solve_cmd = solve_cmd # + f" --ngen {num_generations}"
@@ -145,14 +142,7 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
 
 def load_input_file():
-
-    #if "_user" in problem_name:
-    #    problem_name = problem_name.replace("_user", "")
-    #    st.session_state.from_user = True
-    #if st.session_state.from_user:
     file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
-    #else:
-    #    file_path = os.path.join(DEFAULT_PROBLEM_INPUTS_ABSPATH, problem_name, "input.txt")
     print(f"loading default input file at: {file_path}")
     with open(file_path, "r") as f:
         content = f.read()
@@ -188,12 +178,8 @@ def create_config_tabs(solver_name, config_column):
         if requested_solver_config_name == "default" or requested_solver_config_name == "":
             config_column.warning("Config name can't be empty or 'default'")
         else:
-            print(f"DEBUG (before new config add): all_config: {st.session_state.all_configs}")
-            print(f"DEBUG (before new config add): default values: {DEFAULT_CONFIGS[solver_name]}")
             default_config_set = DEFAULT_CONFIGS[solver_name].copy()
             st.session_state.all_configs[solver_name][requested_solver_config_name] = default_config_set
-            print(f"DEBUG (after new config add): all_config: {st.session_state.all_configs}")
-            print(f"DEBUG (before new config add): default values: {DEFAULT_CONFIGS[solver_name]}")
             st.session_state.new_config[solver_name] = False
             config_column.success(f"New configuration added for {solver_name}")
 
@@ -213,16 +199,13 @@ def create_config_tabs(solver_name, config_column):
                         slider_options = [key for key in CONFIG_SLIDER_SETTINGS]
                         st.error(f"Available options are: {slider_options}")
                         
-    print(f"DEBUG (create config): @@@@@@@@@ all_configs: {st.session_state.all_configs}")
-    print(f"DEBUG (create config): config_items: {config_items}")
-    print(f"DEBUG (create config): config_tabs_present: {st.session_state.config_tabs_present}")
-    print(f"DEBUG (create config): selected_config_names: {st.session_state.selected_config_names}")
+    #print(f"DEBUG (create config): @@@@@@@@@ all_configs: {st.session_state.all_configs}")
+    #print(f"DEBUG (create config): config_items: {config_items}")
+    #print(f"DEBUG (create config): config_tabs_present: {st.session_state.config_tabs_present}")
+    #print(f"DEBUG (create config): selected_config_names: {st.session_state.selected_config_names}")
+
 
 def save_user_modified_input_file(content):
-    #if "_user" in st.session_state.problem_name:
-    #    problem_name = st.session_state.problem_name.replace("_user", "")
-    #if st.session_state.from_user:
-    
     file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
     
     # make the file at filepath if it does not exist
@@ -244,9 +227,10 @@ def on_text_area_change():
             problem_description_container.success("Valid input file")
             print(f"saving content: {st.session_state.input_text_area}")
             st.session_state.from_user = True
-            st.session_state.base_input_path = USER_PROBLEM_INPUTS_ABSPATH
+            #MM: if user changes problem definition, save it where it was found (see reset_text_area comment for reasoning)
+            #MM: st.session_state.base_input_path = USER_PROBLEM_INPUTS_ABSPATH
             save_user_modified_input_file(content)
-            st.session_state.base_save_path = USER_RESULTS_ABSPATH
+            #MM: st.session_state.base_save_path = USER_RESULTS_ABSPATH
             problem_description_container.write(f"Saved user modified file to {st.session_state.base_input_path}")
         st.session_state.previous_input_text_area = content
 
@@ -294,7 +278,8 @@ def validate_user_input(content):
 
     return True
 
-
+#MM: feature currently commented out - if user modifies a problem definition and wants to reset it, 
+#        they can do so using `git checkout` in the local repo
 def reset_text_area():
     print("resetting text area")
     st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
@@ -302,79 +287,107 @@ def reset_text_area():
     st.session_state.from_user = False
     st.session_state.base_save_path = DEFAULT_RESULTS_ABSPATH
     st.session_state.input_text_area_key = str(uuid.uuid4())  # hack the widget key for updates
-    # st.session_state.pop("input_text_area", None)
+    
     
 def graph_results(dfs, cols=None):
     """ plot a list of dfs """
-    if not st.session_state.compare_solvers:  # single solver
+    
+    fig = go.Figure()
 
-        # Read data from CSV file
+    # for each df, get alt_cols, and add trace to fig
+    # Create tabs for the different configurations within the cols provided
+    all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+    all_result_tabs = {}
+    for col_num, col in enumerate(cols):
+        result_tabs = col.tabs(st.session_state.selected_config_names[all_solvers[col_num]])
+        all_result_tabs[col_num] = result_tabs
+        
+    dataset_expected = 0
+    for solver in all_solvers:
+        dataset_expected += len(st.session_state.selected_config_names[solver]) 
+    #print(f"DEBUG: dataset_expected = {dataset_expected}, number columns: {len(cols)}, length of DFS = {len(dfs)}")
+    if dataset_expected == len(dfs):            
+        df_index = 0
+        df = []
+        for col_num, tabs in all_result_tabs.items():
+            for tab_num, tab in enumerate(tabs):
+                if df_index >= len(dfs):
+                    print("More solutions available then tabs available to display")
+                    break
 
-        # print(f"reading csv from: {st.session_state.result_csv_path}")
-        # df = pd.read_csv(st.session_state.result_csv_path)
-
-        #if len(dfs) == 1:
-        df = dfs[0]
-        solve_container.write("Solution points")
-        solve_container.write(df)
-
-        # scatter plot
-        fig = go.Figure()
-
-        print(f"columns: {df.columns}")
-
-        alt_cols = [col for col in df.columns if col.startswith("p")]  #or col.startswith("y"))]
-
-        print(f"alt_cols: {alt_cols}")
-
-        if len(alt_cols) > 1:
-            trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name='(p1, p2)')
-
-        fig.add_trace(trace)
-
-        # Customize the plot
-        fig.update_layout(
-            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.solver_name} (num sols={len(df)})',
-            xaxis_title='p1',
-            yaxis_title='p2'
-        )
-
-        # Show the plot
-        solve_container.plotly_chart(fig, use_container_width=True)
-
+                df = dfs[df_index]
+                tab.write("Solution Points:")
+                tab.write(df)
+                
+                alt_cols = [col for col in df.columns if col.startswith("p")]
+                #print(f"DEBUG: alt_cols: {alt_cols}")
+                if len(alt_cols) > 1:
+                    trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{all_solvers[col_num]}: {st.session_state.selected_config_names[all_solvers[col_num]][tab_num]} (num sols={len(df)})')
+                    fig.add_trace(trace)
+                
+                df_index +=1
+                #print(f"DEBUG: tab_num={tab_num}, col_num={col_num}, df_index={df_index}, len(tabs)={len(tabs)}")
     else:
-            #elif st.session_state.result_csv_paths and st.session_state.compare_solvers:  # multiple solvers
-        # show the df of each result
-            # df_list = []
-            # for i, result_csv_path in enumerate(st.session_state.result_csv_paths):
-            #     df = pd.read_csv(result_csv_path)
-            #     df_list.append(df)
-            #     multi_solver_cols[i].write(df)
+        print("Warning: Data and column/tab expection does not match")
 
-            # plot each result on the same plot
-        fig = go.Figure()
+    # Customize the plot
+    fig.update_layout(
+        title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
+        xaxis_title='p1',
+        yaxis_title='p2'
+    )
 
-        # for each df, get alt_cols, and add trace to fig
-        for i, df in enumerate(dfs):
+    # Show the plot
+    solve_container.plotly_chart(fig, use_container_width=True)
 
-            cols[i].write(df)
 
-            alt_cols = [col for col in df.columns if col.startswith("p")]
-            if len(alt_cols) > 1:
-                trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{st.session_state.multiple_solvers[i]} (num sols={len(df)})')
-                fig.add_trace(trace)
+#################
+# System States
+#################
 
-        # Customize the plot
-        fig.update_layout(
-            title=f'Solutions to {st.session_state.problem_name} solved with {st.session_state.multiple_solvers}',
-            xaxis_title='p1',
-            yaxis_title='p2'
-        )
+# selected problem name
+if 'problem_name' not in st.session_state:
+    st.session_state.problem_name = ""
+    
+# last selected problem
+if 'previous_problem_name' not in st.session_state:
+    st.session_state.previous_problem_name = ""
 
-        # Show the plot
-        solve_container.plotly_chart(fig, use_container_width=True)
+# solve the same problem with multiple solver and compare results
+if 'compare_solvers' not in st.session_state:
+    st.session_state.compare_solvers = False
 
-# state
+# selected solver name (when only one selected, not comparing)
+if 'solver_name' not in st.session_state:
+    st.session_state.solver_name = ""
+
+# selected solvers when comparing
+if 'multiple_solvers' not in st.session_state:
+    st.session_state.multiple_solvers = []
+
+# all configurations from the input file and the added configurations during setup
+if 'all_configs' not in st.session_state:
+    st.session_state.all_configs = {}
+
+# configuration names selected for each solver selected
+if 'selected_config_names' not in st.session_state:
+    st.session_state.selected_config_names = {}
+
+# Used to add textbox and warnings when "Add new config" button is pressed
+if 'new_config' not in st.session_state:
+    st.session_state.new_config = {}
+
+# Indicate when config tab is first being created to allow loading data from a file
+if 'config_tabs_present' not in st.session_state:
+    st.session_state.config_tabs_present = {}
+
+# default path to text inputs for the problem
+if 'base_input_path' not in st.session_state: # todo path change
+    st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
+
+# default path to save results
+if 'base_save_path' not in st.session_state: # todo path change
+    st.session_state.base_save_path = DEFAULT_RESULTS_ABSPATH
 
 # user-editable area to adjust problem specification
 if 'input_text_area' not in st.session_state:
@@ -384,66 +397,30 @@ if 'input_text_area' not in st.session_state:
 if 'previous_input_text_area' not in st.session_state:
     st.session_state.previous_input_text_area = ""
 
-if 'problem_name' not in st.session_state:
-    st.session_state.problem_name = ""
-
-if 'solver_name' not in st.session_state:
-    st.session_state.solver_name = ""
-
-# default path to text inputs for the problem
-if 'base_input_path' not in st.session_state: # todo path change
-    st.session_state.base_input_path = DEFAULT_PROBLEM_INPUTS_ABSPATH
+# unique text area key for re-renders
+if 'input_text_area_key' not in st.session_state:
+    st.session_state.input_text_area_key = str(uuid.uuid4())
 
 # user modified input file, which changes the path to results
 if 'from_user' not in st.session_state:
     st.session_state.from_user = False
 
-# default path to save results
-if 'base_save_path' not in st.session_state: # todo path change
-    st.session_state.base_save_path = DEFAULT_RESULTS_ABSPATH
-
-# path to input file
-if 'result_txt_path' not in st.session_state:
-    st.session_state.result_txt_path = ""
-
-# path to results csv file
-if 'result_csv_path' not in st.session_state:
-    st.session_state.result_csv_path = ""
-
-# last selected problem
-if 'previous_problem_name' not in st.session_state:
-    st.session_state.previous_problem_name = ""
-
-# unique text area key for re-renders
-if 'input_text_area_key' not in st.session_state:
-    st.session_state.input_text_area_key = str(uuid.uuid4())
-
-# solve the same problem with multiple solver and compare results
-if 'compare_solvers' not in st.session_state:
-    st.session_state.compare_solvers = False
-
-if 'multiple_solvers' not in st.session_state:
-    st.session_state.multiple_solvers = []
-
+#MM: removed with solve_problem - path to results csv file
+#MM: removed with solve_problem - if 'result_csv_path' not in st.session_state:
+    #MM: removed with solve_problem - st.session_state.result_csv_path = ""
+    
+# List of paths for the solved csv file (per selected solver/configs)
 if 'result_csv_paths' not in st.session_state:
     st.session_state.result_csv_paths = []
 
-if 'selected_config_names' not in st.session_state:
-    st.session_state.selected_config_names = {}
-    
-if 'all_configs' not in st.session_state:
-    st.session_state.all_configs = {}
-
+# signals completion of solve command, reset after graphing of data is complete
 if 'solve_complete' not in st.session_state:
     st.session_state.solve_complete = False
-    
-# Used to add textbox and warnings when "Add new config" button is pressed
-if 'new_config' not in st.session_state:
-    st.session_state.new_config = {}
-    
-# Indicate when config tab is first being created to allow loading data from a file
-if 'config_tabs_present' not in st.session_state:
-    st.session_state.config_tabs_present = {}
+
+# Store metrics for the selected solvers
+#   Current metrics: execution time (for solvers that provide this information)
+if 'solver_metrics' not in st.session_state:
+    st.session_state.solver_metrics = {}
 
 print(st.session_state)
 
@@ -466,11 +443,7 @@ solve_container.header("Results")
 
 # main container logic
 with main_container:
-
-    # MM TODO: are these two variables used anymore? use is commented out
     problem_name_previous = st.session_state.problem_name
-    solver_name_previous = st.session_state.solver_name
-
     st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(PROBLEMS)[::-1])
 
     with solver_config_container:
@@ -508,75 +481,51 @@ with main_container:
                 )
 
         solve_col, reset_col = problem_description_container.columns([1, 1], gap="small")
-        #MM TODO: hide the reset button for now
+        #MM: hide the reset button for now
         #reset_col.button("Reset Input", on_click=reset_text_area)
 
     with solve_container:
 
         if solve_col.button("Solve Problem"):
-            print(f"DEBUG: ********* saving config ************")
             save_solver_config()
-            #MM TODO: STOPPED HERE - need to combine multi/single and use all_config
             if st.session_state.multiple_solvers:
                 st.write(f"Solving {st.session_state.problem_name} with {st.session_state.multiple_solvers}...")
-            #MM TODO: else may not be needed
-            #MM TODO: else:
-                #MM TODO: st.write(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}...")
+            else:
+                st.write(f"Solving {st.session_state.problem_name} with {st.session_state.solver_name}...")
             with st.spinner():
                 solve_output = ""
                 solve_progress_placeholder = solve_container.empty()
 
-                if st.session_state.compare_solvers is False:
-                    with st.expander("", expanded=True):
-                        start_time = time.time()
-                        if st.session_state.solver_name in SOLVERS:
-                            # MM TODO: plan to add configuration and user define information
-                            for solve_update in solve_problem():
-                                solve_output += solve_update
-                                solve_progress_placeholder.text_area("", solve_output, height=300)
-                        else: # no valid solver selected
-                            for solve_update in solve_problem():
-                                solve_output += solve_update
-                                solve_progress_placeholder.text_area("", solve_output, height=300) 
-                        end_time = time.time()
-                        print(f" **** Solve time: {end_time - start_time} **** ")
+                with st.expander("Solver Output", expanded=True):
+                    all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+                    # Setup columns for the different solvers                        
+                    multi_result_cols = solve_container.columns(len(all_solvers))
+                    start_time = time.time()
+                    solve_outputs = {solver_name: "" for solver_name in all_solvers}
+                    solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
 
-                        #with st.expander("Solver Performance", expanded=True):
-    
-                else:  # comparings multiple solvers
-                    with st.expander("Solver Comparison", expanded=True):
-                        multi_result_cols = solve_container.columns(len(st.session_state.multiple_solvers))
-                        start_time = time.time()
-                        solve_outputs = {solver_name: "" for solver_name in st.session_state.multiple_solvers}
-                        solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(st.session_state.multiple_solvers)}
+                    for solver_name, info_type, data in multi_solve_problem():
+                        if info_type == "output":
+                            solve_outputs[solver_name] += data
+                            solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
 
-                        for solver_name, info_type, data in multi_solve_problem():
-                            if info_type == "output":
-                                solve_outputs[solver_name] += data
-                                solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
-
-                                if "Execution time" in data:
-                                    time_str = data.split("Execution time:")[1].split(" s")[0].strip()
-                                    execution_time = float(time_str)
-                                    st.session_state.solver_config[solver_name]["execution_time"] = execution_time
-                        end_time = time.time()
-                        print(f" **** Solve time: {end_time - start_time} **** ")
-                        st.session_state.solve_complete = True
+                            if "Execution time" in data:
+                                time_str = data.split("Execution time:")[1].split(" s")[0].strip()
+                                execution_time = float(time_str)
+                                st.session_state.solver_metrics[solver_name]= {"execution_time": execution_time}
+                                #print(f"DEBUG: solver_metrics: {st.session_state.solver_metrics}")
+                    end_time = time.time()
+                    print(f" **** Solve time: {end_time - start_time} seconds **** ")
+                    st.session_state.solve_complete = True
 
         with st.expander("Solver Performance", expanded=True):
-            if st.session_state.compare_solvers and st.session_state.solve_complete:
+            if st.session_state.solve_complete:
                 print("GRAPH")
+                dfs = []
                 dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
-                graph_results(dfs, cols=multi_solver_cols)
-            elif st.session_state.result_csv_path and st.session_state.solve_complete:
-                    df = pd.read_csv(st.session_state.result_csv_path)
-                    graph_results([df])
+                #print(f"DEBUG: dfs: {dfs}")
+                graph_results(dfs, cols=multi_result_cols)
+                    
+                # reset solve complete flag
+                st.session_state.solve_complete = False
 
-        # if st.session_state.result_csv_paths and st.session_state.solve_complete:  # multi solver
-        #     with st.expander("Solver Performance", expanded=True):
-        #         
-        # #if st.session_state.result_csv_path and st.session_state.solve_complete: # single solver
-        # elif os.path.exists(st.session_state.result_csv_path) and st.session_state.solve_complete:
-        #     with st.expander("Solver Performance", expanded=True):
-        #         df = pd.read_csv(st.session_state.result_csv_path)
-        #         graph_results([df])
