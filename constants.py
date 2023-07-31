@@ -1,6 +1,5 @@
 import os
 
-PROBLEMS = ["disk", "bnh", "osy", "tnk"] 
 SOLVERS = ["pymoo", "constraint_prog"] #, "z3", "scipy"]
 DEFAULT_CONFIGS = {
     "pymoo": {
@@ -40,6 +39,4 @@ CONFIG_SLIDER_SETTINGS = {
 
 SYMBENCH_DATASET_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "symbench-dataset", "symbench_dataset")
 DEFAULT_RESULTS_ABSPATH = os.path.join(SYMBENCH_DATASET_PATH, "results")
-USER_RESULTS_ABSPATH = os.path.join(SYMBENCH_DATASET_PATH, "user_results")
 DEFAULT_PROBLEM_INPUTS_ABSPATH = os.path.join(SYMBENCH_DATASET_PATH, "problems")
-USER_PROBLEM_INPUTS_ABSPATH = os.path.join(SYMBENCH_DATASET_PATH, "user_problems")
