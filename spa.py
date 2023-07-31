@@ -140,6 +140,14 @@ def solve_problem(num_generations=None, num_points=None, num_iters=None):
 
     return rc
 
+def find_problem_names(root_directory):
+    problem_names = []
+    for root, _, files in os.walk(root_directory):
+        if "input.txt" in files:
+            # Extract the "problem" name from the path
+            problem_name = os.path.basename(root)
+            problem_names.append(problem_name)
+    return problem_names
 
 def load_input_file():
     file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
@@ -447,7 +455,8 @@ solve_container.header("Results")
 # main container logic
 with main_container:
     problem_name_previous = st.session_state.problem_name
-    st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(PROBLEMS)[::-1])
+    problem_names_list = find_problem_names(DEFAULT_PROBLEM_INPUTS_ABSPATH)
+    st.session_state.problem_name = problem_col.selectbox("Select a problem:", sorted(problem_names_list)[::-1])
     if st.session_state.problem_name != problem_name_previous:
         st.session_state.config_tabs_present = {}
         st.session_state.all_configs = {}
