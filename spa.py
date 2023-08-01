@@ -247,10 +247,10 @@ def validate_user_input(content):
     line_number = 1
     
     variable_pattern = re.compile(r'^variable\s+\w+\s+-?\d+(\.\d+)?\s+-?\d+(\.\d+)?$')
-    #constraint_pattern = re.compile(r'^constraint\s+\w+\s+(leq|geq)\(.+\,-?\d+(\.\d+)?\)$')
     constraint_pattern = re.compile(r'^constraint\s+\w+\s+(leq|geq)\(.+?\)$')
     projection_pattern = re.compile(r'^projection\s+\w+\s+.+$')
     optimize_pattern = re.compile(r'^(minimize|maximize)\s+\w+$')
+    ext_function_pattern = re.compile(r'^ext_function\s+\w+\(\d+\)\s+\w+\.pt$') 
 
     line_formats = set()
 
@@ -267,6 +267,8 @@ def validate_user_input(content):
             line_formats.add('projection')
         elif optimize_pattern.match(line):
             line_formats.add('optimize')
+        elif ext_function_pattern.match(line):
+            line_formats.add('ext_function')
         else:
             problem_description_container.error(f"Invalid format at line {line_number}: {line}")
             return False
