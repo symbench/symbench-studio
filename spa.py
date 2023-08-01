@@ -241,7 +241,6 @@ def on_text_area_change():
 def validate_user_input(content):
     print("validating user input")
 
-    # allow empty lines
     input_str = [line for line in content.strip().split("\n") if line != ""]
 
     line_number = 1
@@ -251,7 +250,8 @@ def validate_user_input(content):
     projection_pattern = re.compile(r'^projection\s+\w+\s+.+$')
     optimize_pattern = re.compile(r'^(minimize|maximize)\s+\w+$')
     ext_function_pattern = re.compile(r'^ext_function\s+\w+\(\d+\)\s+\w+\.pt$') 
-
+    derivative_pattern = re.compile(r'^derivative\s+\w+\s+.+$')
+    
     line_formats = set()
 
     for line in input_str:
@@ -269,6 +269,8 @@ def validate_user_input(content):
             line_formats.add('optimize')
         elif ext_function_pattern.match(line):
             line_formats.add('ext_function')
+        elif derivative_pattern.match(line):
+            line_formats.add('derivative')
         else:
             problem_description_container.error(f"Invalid format at line {line_number}: {line}")
             return False
@@ -277,7 +279,7 @@ def validate_user_input(content):
 
     print(f"line formats: {line_formats}")
     
-    if len(line_formats) != 4:
+    if len(line_formats) < 4:  # might need to update
         st.error("Error: Missing line formats. Reset the input")
         return False
 
