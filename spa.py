@@ -46,8 +46,9 @@ def multi_solve_problem():
     for solver in all_solvers:
         solver_config_names = ",".join(st.session_state.selected_config_names[solver])
         solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --configs {solver_config_names}"
-        print(f"(solve command) symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --configs {solver_config_names}")
-        #MM TODO: for history option: solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --history"
+        if st.session_state.history_request:
+            solve_cmd = solve_cmd + " --history"
+        print(f"(solve command) {solve_cmd}")
         solve_cmds.append((solver, solve_cmd))
 
     # set csv paths
@@ -55,10 +56,12 @@ def multi_solve_problem():
     st.session_state.result_csv_paths = []
     for solver in all_solvers:
         for config in st.session_state.selected_config_names[solver]:
-            csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}.csv")
-            #MM TODO: for history option: csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}_hist.csv")
+            if st.session_state.history_request:
+                csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}_hist.csv")
+            else:
+                csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}.csv")
             st.session_state.result_csv_paths.append(csv_path)
-    #print(f"DEBUG: full csv path: {st.session_state.result_csv_paths}")
+    print(f"DEBUG: full csv path: {st.session_state.result_csv_paths}")
 
     def run_commands(solve_cmds):
         processes = []
@@ -167,7 +170,6 @@ def create_config_tabs(solver_name, config_column):
     else:
         config_column.warning(f"No configuration file available for {solver_name}")
 
-
 def save_user_modified_input_file(content):
     file_path = os.path.join(st.session_state.base_input_path, st.session_state.problem_name, "input.txt")
     
@@ -178,9 +180,6 @@ def save_user_modified_input_file(content):
     with open(file_path, "w") as f:
         f.write(content)
 
-    st.session_state.from_user = True
-
-
 def on_text_area_change():
     print("saving changes")
     content = st.session_state[st.session_state.input_text_area_key]
@@ -189,11 +188,9 @@ def on_text_area_change():
         if result is True:
             problem_description_container.success("Valid input file")
             print(f"saving content: {st.session_state.input_text_area}")
-            st.session_state.from_user = True
             save_user_modified_input_file(content)
             problem_description_container.write(f"Saved user modified file to {st.session_state.base_input_path}")
         st.session_state.previous_input_text_area = content
-
 
 def validate_user_input(content):
     print("validating user input")
@@ -252,6 +249,7 @@ def graph_results(dfs, cols=None):
         all_result_tabs[col_num] = result_tabs
         
     dataset_expected = 0
+    alt_cols = []
     for solver in all_solvers:
         dataset_expected += len(st.session_state.selected_config_names[solver]) 
     #print(f"DEBUG: dataset_expected = {dataset_expected}, number columns: {len(cols)}, length of DFS = {len(dfs)}")
@@ -268,8 +266,7 @@ def graph_results(dfs, cols=None):
                 tab.write("Solution Points:")
                 tab.write(df)
                 
-                alt_cols = [col for col in df.columns if col.startswith("p")]
-                #print(f"DEBUG: alt_cols: {alt_cols}")
+                alt_cols = df.columns[-2:]
                 if len(alt_cols) > 1:
                     trace = go.Scatter(x=df[alt_cols[0]], y=df[alt_cols[1]], mode='markers', name=f'{all_solvers[col_num]}: {st.session_state.selected_config_names[all_solvers[col_num]][tab_num]} (num sols={len(df)})')
                     fig.add_trace(trace)
@@ -282,8 +279,8 @@ def graph_results(dfs, cols=None):
     # Customize the plot
     fig.update_layout(
         title=f'Solutions to {st.session_state.problem_name} solved with {all_solvers}',
-        xaxis_title='p1',
-        yaxis_title='p2'
+        xaxis_title=alt_cols[0],
+        yaxis_title=alt_cols[1]
     )
 
     # Show the plot
@@ -353,10 +350,10 @@ if 'previous_input_text_area' not in st.session_state:
 # unique text area key for re-renders
 if 'input_text_area_key' not in st.session_state:
     st.session_state.input_text_area_key = str(uuid.uuid4())
-
-# user modified input file, which changes the path to results
-if 'from_user' not in st.session_state:
-    st.session_state.from_user = False
+    
+# user requests to show solve history (uses --history flag when solving problem)
+if 'history_request' not in st.session_state:
+    st.session_state.history_request = False
 
 # List of paths for the solved csv file (per selected solver/configs)
 if 'result_csv_paths' not in st.session_state:
@@ -453,9 +450,8 @@ with main_container:
                     on_change=on_text_area_change,
                 )
 
-        solve_col, reset_col = problem_description_container.columns([1, 1], gap="small")
-        #MM: hide the reset button for now
-        #reset_col.button("Reset Input", on_click=reset_text_area)
+        solve_col, history_col = problem_description_container.columns([1, 1], gap="small")
+        st.session_state.history_request = history_col.checkbox("Request Solve History", value=False)
 
     with solve_container:
 
