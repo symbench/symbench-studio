@@ -42,9 +42,9 @@ def multi_solve_problem():
 
     solve_cmds = []
     all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
-    #print(f"DEBUG: all solvers: {all_solvers}")
+    print(f"DEBUG: all solvers: {all_solvers}")
     for solver in all_solvers:
-        solver_config_names = ",".join(st.session_state.selected_config_names[solver])
+        solver_config_names = ";".join(st.session_state.selected_config_names[solver])
         solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --configs {solver_config_names}"
         if st.session_state.history_request:
             solve_cmd = solve_cmd + " --history"
@@ -54,10 +54,25 @@ def multi_solve_problem():
     # set csv paths
     #print("DEBUG: setup csv paths ...")
     st.session_state.result_csv_paths = []
+    st.session_state.display_num_iter = {"max_iter": 1, "current_iter": 1, "config_max": {}}
     for solver in all_solvers:
+        st.session_state.display_num_iter["config_max"][solver] = {}
         for config in st.session_state.selected_config_names[solver]:
             if st.session_state.history_request:
+                config_max_iter = 1
                 csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}_hist.csv")
+                current_config_info = st.session_state.all_configs[solver][config]
+                if "n_gen" in current_config_info:
+                    config_max_iter = current_config_info["n_gen"]
+                elif "num_of_iterations" in current_config_info:
+                    config_max_iter = current_config_info["num_of_iterations"]
+                else:
+                    print("Error: Configuration does not contain number of iterations")
+                st.session_state.display_num_iter["config_max"][solver][config]={"config_max_iter": config_max_iter}
+                if config_max_iter > st.session_state.display_num_iter["max_iter"]:
+                    st.session_state.display_num_iter["max_iter"] = config_max_iter
+                    st.session_state.display_num_iter["current_iter"] = config_max_iter
+                print(f"DEBUG: display_num_iter: {st.session_state.display_num_iter}")
             else:
                 csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}.csv")
             st.session_state.result_csv_paths.append(csv_path)
@@ -288,7 +303,17 @@ def graph_results(dfs, cols=None):
     )
 
     # Show the plot
-    solve_container.plotly_chart(fig, use_container_width=True)
+    solve_data_graph_container.plotly_chart(fig, use_container_width=True)
+
+def graph_iteration_change():
+    print("DEBUG: graph_iteration_change called ...")
+    st.session_state.previous_iteration_value = st.session_state.display_num_iter["current_iter"]
+    iteration_value = int(st.session_state.display_num_iter["current_iter"])
+    print(f"DEBUG: iteration_value: {iteration_value}; iteration state: {st.session_state.display_num_iter}")
+    #if iteration_value != st.session_state.previous_iteration_value:
+    st.session_state.previous_iteration_value = iteration_value
+    print("DEBUG: regraphing ...")
+    graph_results(st.session_state.dfs, st.session_state.cols)
 
 
 #################
@@ -354,10 +379,6 @@ if 'previous_input_text_area' not in st.session_state:
 # unique text area key for re-renders
 if 'input_text_area_key' not in st.session_state:
     st.session_state.input_text_area_key = str(uuid.uuid4())
-    
-# user requests to show solve history (uses --history flag when solving problem)
-if 'history_request' not in st.session_state:
-    st.session_state.history_request = False
 
 # List of paths for the solved csv file (per selected solver/configs)
 if 'result_csv_paths' not in st.session_state:
@@ -371,6 +392,31 @@ if 'solve_complete' not in st.session_state:
 #   Current metrics: execution time (for solvers that provide this information)
 if 'solver_metrics' not in st.session_state:
     st.session_state.solver_metrics = {}
+    
+# user requests to show solve history (uses --history flag when solving problem)
+if 'history_request' not in st.session_state:
+    st.session_state.history_request = False
+    
+# When using solver history information, indicated number of iterations available (max and current displayed)
+#   Format expected is {"max_iter": <value>, "current_iter":<value>, solver: {config: {config_max_iter: <value>}}}
+if 'display_num_iter' not in st.session_state:
+    st.session_state.display_num_iter = {}
+    
+# For the history feature, indicate if iteration slider exists
+if 'history_slider_exists' not in st.session_state:
+    st.session_state.history_slider_exists = False
+    
+# For the history feature, track the previous iteration value to know if the graph needs to be redraw
+if 'previous_iteration_value' not in st.session_state:
+    st.session_state.previous_iteration_value = 1
+    
+# For the history feature, keep data frame data available for redrawing on change of iterations to graph slider
+if 'dfs' not in st.session_state:
+    st.session_state.dfs = []
+   
+# For the history feature, keep column data available for redrawing on change of iterations to graph slider 
+if 'cols' not in st.session_state:
+    st.session_state.cols = []
 
 print(st.session_state)
 
@@ -390,6 +436,8 @@ problem_description_container.header("Problem Description")
 
 solve_container = st.container()
 solve_container.header("Results")
+
+solve_data_graph_container = solve_container.container()
 
 # main container logic
 with main_container:
@@ -456,46 +504,68 @@ with main_container:
 
         solve_col, history_col = problem_description_container.columns([1, 1], gap="small")
         st.session_state.history_request = history_col.checkbox("Request Solve History", value=False)
+        current_history_request = st.session_state.history_request
+        print(f"DEBUG: current_history: {current_history_request}, state: {st.session_state.history_request}")
 
     with solve_container:
 
         if solve_col.button("Solve Problem"):
             save_solver_config()
-            all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
-            st.write(f"Solving {st.session_state.problem_name} with {all_solvers}...")
-            with st.spinner():
-                solve_output = ""
-                solve_progress_placeholder = solve_container.empty()
+            
+            with solve_data_graph_container:
+                all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+                st.write(f"Solving {st.session_state.problem_name} with {all_solvers}...")
+                with st.spinner():
+                    solve_output = ""
+                    solve_progress_placeholder = solve_data_graph_container.empty()
 
-                with st.expander("Solver Output", expanded=True):
-                    # Setup columns for the different solvers                        
-                    multi_result_cols = solve_container.columns(len(all_solvers))
-                    start_time = time.time()
-                    solve_outputs = {solver_name: "" for solver_name in all_solvers}
-                    solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
+                    with st.expander("Solver Output", expanded=True):
+                        # Setup columns for the different solvers                        
+                        multi_result_cols = solve_data_graph_container.columns(len(all_solvers))
+                        start_time = time.time()
+                        solve_outputs = {solver_name: "" for solver_name in all_solvers}
+                        solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
 
-                    for solver_name, info_type, data in multi_solve_problem():
-                        if info_type == "output":
-                            solve_outputs[solver_name] += data
-                            solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
+                        for solver_name, info_type, data in multi_solve_problem():
+                            if info_type == "output":
+                                solve_outputs[solver_name] += data
+                                solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
 
-                            if "Execution time" in data:
-                                time_str = data.split("Execution time:")[1].split(" s")[0].strip()
-                                execution_time = float(time_str)
-                                st.session_state.solver_metrics[solver_name]= {"execution_time": execution_time}
-                                #print(f"DEBUG: solver_metrics: {st.session_state.solver_metrics}")
-                    end_time = time.time()
-                    print(f" **** Solve time: {end_time - start_time} seconds **** ")
-                    st.session_state.solve_complete = True
+                                if "Execution time" in data:
+                                    time_str = data.split("Execution time:")[1].split(" s")[0].strip()
+                                    execution_time = float(time_str)
+                                    st.session_state.solver_metrics[solver_name]= {"execution_time": execution_time}
+                                    #print(f"DEBUG: solver_metrics: {st.session_state.solver_metrics}")
+                        end_time = time.time()
+                        print(f" **** Solve time: {end_time - start_time} seconds **** ")
+                        st.session_state.solve_complete = True
 
-        with st.expander("Solver Performance", expanded=True):
-            if st.session_state.solve_complete:
-                print("GRAPH")
-                dfs = []
-                dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
-                #print(f"DEBUG: dfs: {dfs}")
-                graph_results(dfs, cols=multi_result_cols)
-                    
-                # reset solve complete flag
-                st.session_state.solve_complete = False
+            with st.expander("Solver Performance", expanded=True):
+                if st.session_state.solve_complete:
+                    print("GRAPH")
+                    dfs = []
+                    dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
+                    #print(f"DEBUG: dfs: {dfs}")
+                    graph_results(dfs, cols=multi_result_cols)
+
+        #if st.session_state.solve_complete and st.session_state.history_request and not st.session_state.history_slider_exists:
+        if st.session_state.solve_complete and st.session_state.history_request:
+            print("DEBUG: in slider section ...")
+            st.session_state.history_slider_exists = True
+            st.session_state.dfs = dfs
+            st.session_state.cols = multi_result_cols
+            print(f"DEBUG: previous iter: {st.session_state.previous_iteration_value}")
+            print(f"DEBUG: Before slider in place: {st.session_state}")
+            current_iter = st.slider("Number of Iterations Displayed", 
+                                                    min_value=1, 
+                                                    max_value=int(st.session_state.display_num_iter["max_iter"]), 
+                                                    value=int(st.session_state.display_num_iter["current_iter"]), 
+                                                    step=1, 
+                                                    on_change=graph_iteration_change,
+                                                    key="history_slider"
+                                                    )
+            print(f"DEBUG: current_iter = {current_iter}")
+            # reset solve complete flag
+            st.session_state.solve_complete = False
+            print(f"DEBUG: After slider in place: {st.session_state}")
 
