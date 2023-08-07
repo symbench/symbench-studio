@@ -13,6 +13,8 @@ import plotly.graph_objects as go
 import uuid
 import json
 
+from dash import callback, Input, Output
+
 from plots import plot_trace, update_fig_layout
 
 # allow continuous output from subprocess in streamlit text area
@@ -260,7 +262,7 @@ def get_result_fig(cols=None):
     dfs = st.session_state.dfs
     fig = go.Figure()
 
-    all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+    all_solvers = get_all_solvers()
 
     all_result_tabs = {}
     for col_num, col in enumerate(cols):
@@ -272,7 +274,7 @@ def get_result_fig(cols=None):
     for solver in all_solvers:
         dataset_expected += len(st.session_state.selected_config_names[solver])
 
-    if dataset_expected == len(dfs):            
+    if dataset_expected == len(dfs):
         df_index = 0
         df = []
         for col_num, tabs in all_result_tabs.items():
@@ -284,55 +286,65 @@ def get_result_fig(cols=None):
                 df = dfs[df_index]
                 tab.write("Solution Points:")
                 tab.write(df)
-                
-                alt_cols.extend(df.columns[-2:])
-                num_iterations = len(df['iter'].unique())
-                print(f"num iterations: {num_iterations}")
-                
-                for i in range(1, num_iterations+1):
-                    iter_df = df[df['iter'] <= i]
-                    #visible = (i == history_iter_num)
 
-                    trace = plot_trace(iter_df,
+                alt_cols.extend(df.columns[-2:])
+                solver_name = all_solvers[col_num]
+                config_name = st.session_state.selected_config_names[solver_name][tab_num]
+                
+                if st.session_state.history_request:
+                    num_iterations = st.session_state.display_num_iter['config_max'][solver_name][config_name]['config_max_iter']
+                    print(f"num iterations: {num_iterations}")
+                    iter_df = df[df['iter'] <= num_iterations]
+
+                    for i in range(1, num_iterations + 1):
+
+                        subset_df = iter_df[iter_df['iter'] <= i]
+
+                        trace = plot_trace(
+                            subset_df,
+                            all_solvers[col_num],
+                            st.session_state.selected_config_names[all_solvers[col_num]][tab_num],
+                            alt_cols
+                        )
+                        fig.add_trace(trace)
+
+                    steps = []
+                    print(f"num iterations during slider creation {num_iterations}")
+                    for i in range(1, num_iterations+1):
+                        step = dict(
+                            method="update",
+                            args=["visible", [False] * len(fig.data)],
+                            label=str(i)
+                        )
+                        step["args"][1][i-1::num_iterations] = [True] * len(fig.data[i-1::num_iterations])
+                        steps.append(step)
+
+                    sliders = [dict(
+                        active=num_iterations-1,
+                        currentvalue={"prefix": "Iteration: "},
+                        pad={"t": 50},
+                        steps=steps
+                    )]
+                    fig.update_layout(
+                        sliders=sliders
+                    )
+                else:
+                    trace = plot_trace(df,
                                         all_solvers[col_num],
                                         st.session_state.selected_config_names[all_solvers[col_num]][tab_num],
                                         alt_cols)
-
-                    #trace.visible = visible
                     fig.add_trace(trace)
-                
-                 # Add slider for current solver/confifg
-                steps = []
-                print(f"num iterations during slider creation {num_iterations}")
-                for i in range(1, num_iterations+1):
-                    step = dict(
-                        method="restyle",
-                        args=["visible", [False] * len(fig.data)],
-                        label=str(i)
-                    )
-                    step["args"][1][i-1::num_iterations] = [True] * len(fig.data[i-1::num_iterations])
-                    steps.append(step)
-
-                sliders = [dict(
-                    active=num_iterations-1,
-                    currentvalue={"prefix": "Iteration: "},
-                    pad={"t": 50},
-                    steps=steps
-                )]
-
                 df_index += 1
+        
+            
 
     else:
         print("Warning: Data and column/tab expectation does not match")
-
-   
-
-    # Customize the plot
+        
     updated_fig = update_fig_layout(fig,
                                     st.session_state.problem_name,
                                     all_solvers,
-                                    alt_cols, 
-                                    sliders)
+                                    alt_cols)
 
     # Show the plot
     return updated_fig
@@ -356,6 +368,10 @@ def set_dfs():
 
 def get_all_solvers():
     return st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
+
+def show_value():
+    st.write(f"slider value: {st.session_state.history_slider}")
+
 
 #################
 # System States

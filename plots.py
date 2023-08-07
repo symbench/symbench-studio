@@ -29,12 +29,11 @@ def plot_trace(df, solver_name, config_name, alt_cols):
     return trace
     
 
-def update_fig_layout(fig, problem_name, all_solvers, alt_cols, sliders):
+def update_fig_layout(fig, problem_name, all_solvers, alt_cols):
     fig.update_layout(
         title=f'Solutions to {problem_name} solved with {all_solvers}',
         xaxis_title=alt_cols[0],
         yaxis_title=alt_cols[1],
-        sliders=sliders
     )
     return fig
 
@@ -88,3 +87,23 @@ def plot_solutions(df, problem_name, all_solvers, alt_cols):
     )
 
     fig.show()
+
+
+def get_updated_plot(session_state):
+    df = session_state.dfs[session_state.dfs['iter'] <= session_state['slider_value']]
+    
+    fig = go.Figure()
+    trace = go.Scatter(x=df['p1'], 
+                       y=df['p2'],
+                       mode='markers',
+                       visible=True,
+                       name=f"num sols={len(df)}",
+            )
+    fig.add_trace(trace)
+    fig.update_layout(
+        title=f"Solution Results for Iteration: {session_state['slider_value']}",
+        xaxis_title='p1',
+        yaxis_title='p2',
+        margin=dict(l=50, r=50, t=50, b=50),
+    )
+    return fig
