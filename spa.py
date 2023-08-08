@@ -164,7 +164,10 @@ def create_config_tabs(solver_name, config_column):
             config_column.success(f"New configuration added for {solver_name}")
 
     if st.session_state.all_configs[solver_name]:
+        #previous_configs = st.session_state.selected_config_names[solver_name]
         st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select Configs:", st.session_state.all_configs[solver_name].keys())
+        #if len(previous_configs) > len(st.session_state.selected_config_names[solver_name]):
+            #st.session_state.solve_complete = False
         config_column.write("Configuration Options Selected:")
         if (len(st.session_state.selected_config_names[solver_name]) >= 1):
             tabs = config_column.tabs(st.session_state.selected_config_names[solver_name])
@@ -304,16 +307,17 @@ def get_result_fig(cols=None):
                                     alt_cols)
                 fig.add_trace(trace)
                 df_index += 1
+                
+        updated_fig = update_fig_layout(fig,
+                        st.session_state.problem_name,
+                        all_solvers,
+                        alt_cols)
+
+        # Show the plot
+        return updated_fig
     else:
         print("Warning: Data and column/tab expectation does not match")
-        
-    updated_fig = update_fig_layout(fig,
-                                    st.session_state.problem_name,
-                                    all_solvers,
-                                    alt_cols)
-
-    # Show the plot
-    return updated_fig
+        st.stop()
 
 def set_dfs():
     dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
@@ -458,6 +462,7 @@ problem_description_container.header("Problem Description")
 solve_container = st.container()
 solve_container.header("Results")
 
+solve_feedback_container = solve_container.container()
 solve_data_container = solve_container.container()
 solve_graph_container = solve_container.container()
 
@@ -491,6 +496,7 @@ with main_container:
     if st.session_state.problem_name != problem_name_previous:
         st.session_state.config_tabs_present = {}
         st.session_state.all_configs = {}
+        st.session_state.solve_complete = False
 
     with solver_config_container:
         print("DEBUG: Inside solver_config_container ....")
@@ -541,28 +547,27 @@ with main_container:
             save_solver_config()
             st.session_state.solve_complete = False
             
-            with solve_data_container:
+            with solve_feedback_container:
                 print("DEBUG: Inside solver_data_container ....")
                 all_solvers = get_all_solvers()
                 st.write(f"Solving {st.session_state.problem_name} with {all_solvers}...")
                 with st.spinner():
-                    print("DEBUG: Inside solve_data_container spinner ....")
+                    print("DEBUG: Inside solve_feedback_container spinner ....")
                     solve_output = ""
-                    solve_progress_placeholder = solve_data_container.empty()
+                    solve_progress_placeholder = solve_feedback_container.empty()
                     print("DEBUG: Empty the solve_progress_placeholder")
 
                     with st.expander("Solver Output", expanded=True):
                         print("DEBUG: Inside Solver Output expander ....")
                         # Setup columns for the different solvers
-                        multi_result_cols = solve_data_container.columns(len(all_solvers))
-                        print("DEBUG: multi_result_cols = {multi_result_cols}")
-                        st.session_state.multi_result_cols = multi_result_cols
+                        multi_feedback_cols = solve_feedback_container.columns(len(all_solvers))
+                        print("DEBUG: multi_feedback_cols = {multi_feedback_cols}")
                         start_time = time.time()
                         solve_outputs = {solver_name: "" for solver_name in all_solvers}
-                        solve_progress_placeholder = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
+                        solve_progress_placeholder = {solver_name: multi_feedback_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
 
                         for solver_name, info_type, data in multi_solve_problem():
-                            print(f"DEBUG: Inside multi_solve_problem loop, solver_name = {solver_name}, info_type = {info_type}")
+                            #print(f"DEBUG: Inside multi_solve_problem loop, solver_name = {solver_name}, info_type = {info_type}")
                             if info_type == "output":
                                 solve_outputs[solver_name] += data
                                 solve_progress_placeholder[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
@@ -581,6 +586,9 @@ with main_container:
             if st.session_state.solve_complete:
                 print("DEBUG: About to place slider ....")
                 print("GRAPH")
+                all_solvers = get_all_solvers()
+                multi_results_cols = solve_data_container.columns(len(all_solvers))
+                print(f"DEBUG: multi_results_cols = {multi_results_cols}")
                 slider_max = int(st.session_state.display_num_iter["max_iter"])
                 print(f"DEBUG: max_iter = {slider_max}")
                 if st.session_state.history_request:
@@ -594,10 +602,10 @@ with main_container:
                     )
                     st.session_state['history_slider_value'] = st.session_state[slider_key]
                     print(f"DEBUG (main): history slider value = {st.session_state['history_slider_value']}")
-                print(f"Pulling new data ... (solve_complete = {st.session_state.solve_complete})")
+                print(f"DEBUG: Pulling new data ... (solve_complete = {st.session_state.solve_complete})")
                 set_dfs()
                 print("DEBUG: Calling get_result_fig ....")
-                fig = get_result_fig(cols=st.session_state.multi_result_cols)
+                fig = get_result_fig(cols=multi_results_cols)
                 print("DEBUG: Plot figure ....")
                 solve_graph_container.plotly_chart(fig, use_container_width=True)
                 print("DEBUG: End of Solver Performance (end of code)")
