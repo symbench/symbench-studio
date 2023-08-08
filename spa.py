@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import uuid
 import json
 
-from dash import callback, Input, Output
+#from dash import callback, Input, Output
 
 from plots import plot_trace, update_fig_layout
 
@@ -45,7 +45,7 @@ def multi_solve_problem():
 
     solve_cmds = []
     all_solvers = st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
-    print(f"DEBUG: all solvers: {all_solvers}")
+    #print(f"DEBUG: all solvers: {all_solvers}")
     for solver in all_solvers:
         solver_config_names = ";".join(st.session_state.selected_config_names[solver])
         solve_cmd = f"symbench-dataset solve --problem {st.session_state.problem_name} --solver {solver} --configs {solver_config_names}"
@@ -57,7 +57,7 @@ def multi_solve_problem():
     # set csv paths
     #print("DEBUG: setup csv paths ...")
     st.session_state.result_csv_paths = []
-    st.session_state.display_num_iter = {"max_iter": 1, "current_iter": 1, "config_max": {}}
+    st.session_state.display_num_iter = {"max_iter": 1, "config_max": {}}
     for solver in all_solvers:
         st.session_state.display_num_iter["config_max"][solver] = {}
         for config in st.session_state.selected_config_names[solver]:
@@ -74,12 +74,10 @@ def multi_solve_problem():
                 st.session_state.display_num_iter["config_max"][solver][config]={"config_max_iter": config_max_iter}
                 if config_max_iter > st.session_state.display_num_iter["max_iter"]:
                     st.session_state.display_num_iter["max_iter"] = config_max_iter
-                    st.session_state.display_num_iter["current_iter"] = config_max_iter
-                print(f"DEBUG: display_num_iter: {st.session_state.display_num_iter}")
             else:
                 csv_path = os.path.join(st.session_state.base_save_path, solver, f"result_{st.session_state.problem_name}", f"{config}.csv")
             st.session_state.result_csv_paths.append(csv_path)
-    print(f"DEBUG: full csv path: {st.session_state.result_csv_paths}")
+    #print(f"DEBUG: full csv path: {st.session_state.result_csv_paths}")
 
     def run_commands(solve_cmds):
         processes = []
@@ -152,7 +150,7 @@ def create_config_tabs(solver_name, config_column):
     else:
         config_items = st.session_state.all_configs[solver_name]
     
-    if config_column.button("Add New Config", key="new_config"+solver_name):
+    if config_column.button("Add New Config", key="new_config"+solver_name, on_click=reset_solve_flag):
         st.session_state.new_config[solver_name] = True
     if st.session_state.new_config[solver_name]:
         requested_solver_config_name = config_column.text_input("Name this config:", value="", key="new_config_name"+solver_name)
@@ -165,7 +163,7 @@ def create_config_tabs(solver_name, config_column):
             config_column.success(f"New configuration added for {solver_name}")
 
     if st.session_state.all_configs[solver_name]:
-        st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select Configs:", st.session_state.all_configs[solver_name].keys())
+        st.session_state.selected_config_names[solver_name] = config_column.multiselect("Select Configs:", st.session_state.all_configs[solver_name].keys(), on_change=reset_solve_flag)
         config_column.write("Configuration Options Selected:")
         if (len(st.session_state.selected_config_names[solver_name]) >= 1):
             tabs = config_column.tabs(st.session_state.selected_config_names[solver_name])
@@ -174,7 +172,7 @@ def create_config_tabs(solver_name, config_column):
                 with config_tab:
                     for config_slider in config_content:
                         if config_slider in CONFIG_SLIDER_SETTINGS:
-                            config_slider_value = config_tab.slider(config_slider, min_value=CONFIG_SLIDER_SETTINGS[config_slider]["min_value"], max_value=CONFIG_SLIDER_SETTINGS[config_slider]["max_value"], value=int(config_content[config_slider]), step=CONFIG_SLIDER_SETTINGS[config_slider]["step"], key=CONFIG_SLIDER_SETTINGS[config_slider]["key"]+solver_name+config_name)
+                            config_slider_value = config_tab.slider(config_slider, min_value=CONFIG_SLIDER_SETTINGS[config_slider]["min_value"], max_value=CONFIG_SLIDER_SETTINGS[config_slider]["max_value"], value=int(config_content[config_slider]), step=CONFIG_SLIDER_SETTINGS[config_slider]["step"], key=CONFIG_SLIDER_SETTINGS[config_slider]["key"]+solver_name+config_name, on_change=reset_solve_flag)
                             st.session_state.all_configs[solver_name][config_name][config_slider] = config_slider_value
                         else:
                             st.error(f"Unknown configuration key: {config_slider}")
@@ -257,12 +255,10 @@ def validate_user_input(content):
 
     return True
 
-
 def get_result_fig(cols=None):
     dfs = st.session_state.dfs
-    fig = go.Figure()
-
     all_solvers = get_all_solvers()
+    fig = go.Figure()
 
     all_result_tabs = {}
     for col_num, col in enumerate(cols):
@@ -277,11 +273,12 @@ def get_result_fig(cols=None):
     if dataset_expected == len(dfs):
         df_index = 0
         df = []
+        
         for col_num, tabs in all_result_tabs.items():
             for tab_num, tab in enumerate(tabs):
                 if df_index >= len(dfs):
-                    print("More solutions available then tabs available to display")
-                    break
+                    st.warning("More solutions available then tabs available to display")
+                    st.stop()
 
                 df = dfs[df_index]
                 tab.write("Solution Points:")
@@ -292,75 +289,25 @@ def get_result_fig(cols=None):
                 config_name = st.session_state.selected_config_names[solver_name][tab_num]
                 
                 if st.session_state.history_request:
-                    num_iterations = st.session_state.display_num_iter['config_max'][solver_name][config_name]['config_max_iter']
-                    print(f"num iterations: {num_iterations}")
-                    iter_df = df[df['iter'] <= num_iterations]
+                    df = get_history_iter_df(solver_name, config_name, df)
 
-                    for i in range(1, num_iterations + 1):
-
-                        subset_df = iter_df[iter_df['iter'] <= i]
-
-                        trace = plot_trace(
-                            subset_df,
-                            all_solvers[col_num],
-                            st.session_state.selected_config_names[all_solvers[col_num]][tab_num],
-                            alt_cols
-                        )
-                        fig.add_trace(trace)
-
-                    steps = []
-                    print(f"num iterations during slider creation {num_iterations}")
-                    for i in range(1, num_iterations+1):
-                        step = dict(
-                            method="update",
-                            args=["visible", [False] * len(fig.data)],
-                            label=str(i)
-                        )
-                        step["args"][1][i-1::num_iterations] = [True] * len(fig.data[i-1::num_iterations])
-                        steps.append(step)
-
-                    sliders = [dict(
-                        active=num_iterations-1,
-                        currentvalue={"prefix": "Iteration: "},
-                        pad={"t": 50},
-                        steps=steps
-                    )]
-                    fig.update_layout(
-                        sliders=sliders
-                    )
-                else:
-                    trace = plot_trace(df,
-                                        all_solvers[col_num],
-                                        st.session_state.selected_config_names[all_solvers[col_num]][tab_num],
-                                        alt_cols)
-                    fig.add_trace(trace)
-                df_index += 1
-        
-            
-
-    else:
-        print("Warning: Data and column/tab expectation does not match")
-        
-    updated_fig = update_fig_layout(fig,
-                                    st.session_state.problem_name,
-                                    all_solvers,
+                trace = plot_trace(df,
+                                    all_solvers[col_num],
+                                    st.session_state.selected_config_names[all_solvers[col_num]][tab_num],
                                     alt_cols)
+                fig.add_trace(trace)
+                df_index += 1
+                
+        updated_fig = update_fig_layout(fig,
+                        st.session_state.problem_name,
+                        all_solvers,
+                        alt_cols)
 
-    # Show the plot
-    return updated_fig
-
-
-# def graph_iteration_change(iter: int):
-#     print("DEBUG: graph_iteration_change called ...")
-#     st.session_state.previous_iteration_value = st.session_state.display_num_iter["current_iter"]
-#     iteration_value = int(st.session_state.display_num_iter["current_iter"])
-#     print(f"DEBUG: iteration_value: {iteration_value}; iteration state: {st.session_state.display_num_iter}")
-#     if iteration_value != st.session_state.previous_iteration_value:
-#         st.session_state.previous_iteration_value = iteration_value
-#     print("DEBUG: regraphing ...")
-#     fig = get_result_fig(iter, cols=st.session_state.cols)
-#     solve_data_graph_container.plotly_chart(fig, use_container_width=True)
-
+        # Show the plot
+        return updated_fig
+    else:
+        st.warning("Data and column/tab expectation does not match")
+        st.stop()
 
 def set_dfs():
     dfs = [pd.read_csv(result_csv_path) for result_csv_path in st.session_state.result_csv_paths]
@@ -369,14 +316,27 @@ def set_dfs():
 def get_all_solvers():
     return st.session_state.multiple_solvers if st.session_state.compare_solvers else [st.session_state.solver_name]
 
-def show_value():
-    st.write(f"slider value: {st.session_state.history_slider}")
+def get_history_iter_df(solver_name, config_name, df):
+    slider_iter_value = st.session_state.history_slider_value
+    #print(f"DEBUG: Get history data for iteration {slider_iter_value}")
+    config_max_iter = st.session_state.display_num_iter['config_max'][solver_name][config_name]['config_max_iter']
+    if config_max_iter >= slider_iter_value:
+        num_iterations = slider_iter_value
+    else:
+        num_iterations = config_max_iter
+    #print(f"num iterations: {num_iterations}")
+    iter_df = df[df['iter'] <= num_iterations]
+    #print(f"DEBUG: iter_df = {iter_df}")
+    return iter_df
 
+def reset_solve_flag():
+    st.session_state.solve_complete = False
 
 #################
 # System States
 #################
 
+#print("DEBUG: Going through system states ...")
 # selected problem name
 if 'problem_name' not in st.session_state:
     st.session_state.problem_name = ""
@@ -441,7 +401,7 @@ if 'input_text_area_key' not in st.session_state:
 if 'result_csv_paths' not in st.session_state:
     st.session_state.result_csv_paths = []
 
-# signals completion of solve command, reset after graphing of data is complete
+# Signals completion of solve command, reset after graphing of data is complete
 if 'solve_complete' not in st.session_state:
     st.session_state.solve_complete = False
 
@@ -450,22 +410,18 @@ if 'solve_complete' not in st.session_state:
 if 'solver_metrics' not in st.session_state:
     st.session_state.solver_metrics = {}
     
-# user requests to show solve history (uses --history flag when solving problem)
+# User requests to show solve history (uses --history flag when solving problem)
 if 'history_request' not in st.session_state:
     st.session_state.history_request = False
     
 # When using solver history information, indicated number of iterations available (max and current displayed)
-#   Format expected is {"max_iter": <value>, "current_iter":<value>, solver: {config: {config_max_iter: <value>}}}
+#   Format expected is {"max_iter": <value>, "config_max": {<solver>: {<config>: {"config_max_iter": <value>}}}}
 if 'display_num_iter' not in st.session_state:
     st.session_state.display_num_iter = {}
     
-# For the history feature, indicate if iteration slider exists
-if 'history_slider_exists' not in st.session_state:
-    st.session_state.history_slider_exists = False
-    
-# For the history feature, track the previous iteration value to know if the graph needs to be redraw
-if 'previous_iteration_value' not in st.session_state:
-    st.session_state.previous_iteration_value = 1
+# For the history feature, track the slider value
+if 'history_slider_value' not in st.session_state:
+    st.session_state.history_slider_value = 1
     
 # For the history feature, keep data frame data available for redrawing on change of iterations to graph slider
 if 'dfs' not in st.session_state:
@@ -475,7 +431,7 @@ if 'dfs' not in st.session_state:
 if 'cols' not in st.session_state:
     st.session_state.cols = []
 
-print(st.session_state)
+#print(st.session_state)
 
 
 # App logic 
@@ -483,7 +439,7 @@ st.set_page_config(layout="wide")
 main_container = st.container()
 main_container.title("Symbench Constraint Solver")
 problem_col, solver_col = main_container.columns([1, 1], gap="small")
-st.session_state.compare_solvers = solver_col.checkbox("Compare 2 or more Solvers", value=False)
+st.session_state.compare_solvers = solver_col.checkbox("Compare 2 or more Solvers", value=False, on_change=reset_solve_flag)
 
 solver_config_container = st.container()
 solver_config_container.header("Solver Configuration")
@@ -494,7 +450,9 @@ problem_description_container.header("Problem Description")
 solve_container = st.container()
 solve_container.header("Results")
 
-solve_data_graph_container = solve_container.container()
+solve_feedback_container = solve_container.container()
+solve_data_container = solve_container.container()
+solve_graph_container = solve_container.container()
 
 # main container logic
 with main_container:
@@ -502,7 +460,7 @@ with main_container:
     problem_names_list = find_problem_names(DEFAULT_PROBLEM_INPUTS_ABSPATH)
     
     # Create button to allow user to create a new problem
-    if problem_col.button("Add New Problem", key="new_prob_button"):
+    if problem_col.button("Add New Problem", key="new_prob_button", on_click=reset_solve_flag):
         st.session_state.new_problem = True
         st.session_state.problem_name = ""
     if st.session_state.new_problem:
@@ -520,14 +478,15 @@ with main_container:
             st.session_state.new_problem = False
             problem_col.success(f"New blank problem added for {new_prob_name}, please fill in the problem definition")
 
-    st.session_state.problem_name = problem_col.selectbox("Select a Problem:", sorted(problem_names_list)[::])
+    st.session_state.problem_name = problem_col.selectbox("Select a Problem:", sorted(problem_names_list)[::], on_change=reset_solve_flag)
     if st.session_state.problem_name != problem_name_previous:
         st.session_state.config_tabs_present = {}
         st.session_state.all_configs = {}
+        st.session_state.solve_complete = False
 
     with solver_config_container:
         if st.session_state.compare_solvers:  # multi selection
-            st.session_state.multiple_solvers = solver_col.multiselect("Select solvers:", SOLVERS)
+            st.session_state.multiple_solvers = solver_col.multiselect("Select solvers:", SOLVERS, on_change=reset_solve_flag)
             if len(st.session_state.multiple_solvers) >= 2:
                 multi_solver_cols = solver_config_container.columns(len(st.session_state.multiple_solvers))
                 for i, solver_name in enumerate(st.session_state.multiple_solvers):
@@ -536,7 +495,7 @@ with main_container:
             else:
                 st.error("Select at least 2 solvers to compare performance")
         else:  # single selection
-            st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS)
+            st.session_state.solver_name = solver_col.selectbox("Select a solver:", SOLVERS, on_change=reset_solve_flag)
             solver_name = st.session_state.solver_name
             multi_solver_cols = solver_config_container.columns(1)
             multi_solver_cols[0].subheader(solver_name)
@@ -544,7 +503,6 @@ with main_container:
             create_config_tabs(solver_name, multi_solver_cols[0])
 
     with problem_description_container:
-
         if st.session_state.previous_problem_name != st.session_state.problem_name and st.session_state.problem_name != "":
             load_input_file()
             st.session_state.previous_problem_name = st.session_state.problem_name
@@ -560,70 +518,59 @@ with main_container:
                 )
 
         solve_col, history_col = problem_description_container.columns([1, 1], gap="small")
-        st.session_state.history_request = history_col.checkbox("Request Solve History", value=False)
+        st.session_state.history_request = history_col.checkbox("Request Solve History", value=False, on_change=reset_solve_flag)
         current_history_request = st.session_state.history_request
-        print(f"DEBUG: current_history: {current_history_request}, state: {st.session_state.history_request}")
 
     with solve_container:
-
         if solve_col.button("Solve Problem"):
             save_solver_config()
+            st.session_state.solve_complete = False
             
-            with solve_data_graph_container:
+            with solve_feedback_container:
                 all_solvers = get_all_solvers()
                 st.write(f"Solving {st.session_state.problem_name} with {all_solvers}...")
                 with st.spinner():
                     solve_output = ""
-                    solve_progress_placeholder = solve_data_graph_container.empty()
+                    solve_progress_placeholder = solve_feedback_container.empty()
 
                     with st.expander("Solver Output", expanded=True):
-                        # Setup columns for the different solvers                        
-                        multi_result_cols = solve_data_graph_container.columns(len(all_solvers))
+                        # Setup columns for the different solvers
+                        multi_feedback_cols = solve_feedback_container.columns(len(all_solvers))
                         start_time = time.time()
                         solve_outputs = {solver_name: "" for solver_name in all_solvers}
-                        solve_progress_placeholders = {solver_name: multi_result_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
+                        solve_progress_placeholder = {solver_name: multi_feedback_cols[i].empty() for i, solver_name in enumerate(all_solvers)}
 
                         for solver_name, info_type, data in multi_solve_problem():
                             if info_type == "output":
                                 solve_outputs[solver_name] += data
-                                solve_progress_placeholders[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
+                                solve_progress_placeholder[solver_name].text_area(f"{solver_name} progress", solve_outputs[solver_name], height=300)
 
                                 if "Execution time" in data:
                                     time_str = data.split("Execution time:")[1].split(" s")[0].strip()
                                     execution_time = float(time_str)
                                     st.session_state.solver_metrics[solver_name]= {"execution_time": execution_time}
-                                    #print(f"DEBUG: solver_metrics: {st.session_state.solver_metrics}")
                         end_time = time.time()
                         print(f" **** Solve time: {end_time - start_time} seconds **** ")
                         st.session_state.solve_complete = True
 
-            with st.expander("Solver Performance", expanded=True):
-                if st.session_state.solve_complete:
-                    print("GRAPH")
-                    #print(f"DEBUG: dfs: {dfs}")
-                    set_dfs()
-                    fig = get_result_fig(cols=multi_result_cols)
-                    solve_data_graph_container.plotly_chart(fig, use_container_width=True)
-
-            #if st.session_state.solve_complete and st.session_state.history_request and not st.session_state.history_slider_exists:
-            # if st.session_state.dfs and st.session_state.history_request:
-            #     print("DEBUG: in slider section ...")
-            #     st.session_state.history_slider_exists = True
-            #     print(f"DEBUG: previous iter: {st.session_state.previous_iteration_value}")
-            #     print(f"DEBUG: Before slider in place: {st.session_state}")
-            #     current_iter = st.slider("Number of Iterations Displayed", 
-            #                                             min_value=1, 
-            #                                             max_value=int(st.session_state.display_num_iter["max_iter"]), 
-            #                                             value=int(st.session_state.display_num_iter["current_iter"]), 
-            #                                             step=1, 
-            #                                             #on_change=graph_iteration_change,
-            #                                             key="history_slider"
-            #                                             )
-                
-            #     #st.session_state.display_num_iter["current_iter"] = current_iter
-            #     graph_iteration_change(current_iter)
-            #     print(f"DEBUG: current_iter = {current_iter}")
-            #     # reset solve complete flag
-            #     st.session_state.solve_complete = False
-            #     print(f"DEBUG: After slider in place: {st.session_state}")
-
+        with st.expander("Solver Performance", expanded=True):
+            if st.session_state.solve_complete:
+                print("GRAPH")
+                all_solvers = get_all_solvers()
+                multi_results_cols = solve_data_container.columns(len(all_solvers))
+                slider_max = int(st.session_state.display_num_iter["max_iter"])
+                if st.session_state.history_request:
+                    slider_key = 'history_slider'
+                    solve_container.slider("Number of Iterations Displayed", 
+                                min_value=1, 
+                                max_value=slider_max, 
+                                value=int(st.session_state['history_slider_value']), 
+                                step=1, 
+                                key=slider_key
+                    )
+                    st.session_state['history_slider_value'] = st.session_state[slider_key]
+                #print(f"DEBUG: Pulling new data ... (solve_complete = {st.session_state.solve_complete})")
+                set_dfs()
+                fig = get_result_fig(cols=multi_results_cols)
+                solve_graph_container.plotly_chart(fig, use_container_width=True)
+                #print("DEBUG: End of Solver Performance (end of code)")
